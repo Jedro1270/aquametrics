@@ -1,0 +1,302 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../data/count_editor.dart';
+import '../theme/app_theme.dart';
+import '../util/format.dart';
+import '../widgets/app_buttons.dart';
+import '../widgets/count_widgets.dart';
+import '../widgets/fish_field.dart';
+
+/// Full-screen frame inspection. Pinch to zoom into a clump and keep correcting
+/// at that magnification, which is the whole point: a ring you cannot see is a
+/// ring you cannot trust.
+class TrayViewerScreen extends StatefulWidget {
+  /// Editable view backed by the shared [CountEditor], so corrections made here
+  /// are the same corrections shown on the review screen.
+  const TrayViewerScreen.editing({
+    super.key,
+    required CountEditor this.editor,
+    required this.title,
+  }) : tray = null,
+       markers = const [];
+
+  /// Read-only view of a saved count.
+  const TrayViewerScreen.readOnly({
+    super.key,
+    required FishField this.tray,
+    required this.markers,
+    required this.title,
+  }) : editor = null;
+
+  final CountEditor? editor;
+  final FishField? tray;
+  final List<FishSpot> markers;
+  final String title;
+
+  @override
+  State<TrayViewerScreen> createState() => _TrayViewerScreenState();
+}
+
+class _TrayViewerScreenState extends State<TrayViewerScreen> {
+  final _transform = TransformationController();
+
+  /// Stands in for the editor in read-only mode so the builders below do not
+  /// need a null branch.
+  final _idle = ValueNotifier<int>(0);
+
+  double _scale = 1;
+
+  Listenable get _refresh => widget.editor ?? _idle;
+  bool get _editable => widget.editor != null;
+  FishField get _tray => widget.editor?.tray ?? widget.tray!;
+  List<FishSpot> get _markers => widget.editor?.markers ?? widget.markers;
+
+  @override
+  void initState() {
+    super.initState();
+    _transform.addListener(_onTransform);
+  }
+
+  void _onTransform() {
+    final next = _transform.value.getMaxScaleOnAxis();
+    if ((next - _scale).abs() < 0.01) return;
+    setState(() => _scale = next);
+  }
+
+  @override
+  void dispose() {
+    _transform.removeListener(_onTransform);
+    _transform.dispose();
+    _idle.dispose();
+    super.dispose();
+  }
+
+  void _resetZoom() => _transform.value = Matrix4.identity();
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final zoomed = _scale > 1.05;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: AppColors.water,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                child: Row(
+                  children: [
+                    ViewfinderIconButton(
+                      icon: Icons.close_rounded,
+                      onPressed: () => Navigator.of(context).pop(),
+                      tooltip: 'Close',
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: text.titleMedium?.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            zoomed
+                                ? '${_scale.toStringAsFixed(1)}× zoom'
+                                : 'Pinch or double-tap to zoom',
+                            style: text.bodySmall?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (zoomed)
+                      ViewfinderIconButton(
+                        icon: Icons.zoom_out_map_rounded,
+                        onPressed: _resetZoom,
+                        tooltip: 'Fit to screen',
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListenableBuilder(
+                  listenable: _refresh,
+                  builder: (context, _) => InteractiveViewer(
+                    transformationController: _transform,
+                    minScale: 1,
+                    maxScale: 8,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: MockTrayImage(
+                          field: _tray,
+                          markers: _markers,
+                          radius: 0,
+                          onTapNormalised: widget.editor?.tapAt,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              ListenableBuilder(
+                listenable: _refresh,
+                builder: (context, _) => _BottomPanel(
+                  editor: widget.editor,
+                  readOnlyTotal: _markers.length,
+                  editable: _editable,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomPanel extends StatelessWidget {
+  const _BottomPanel({
+    required this.editor,
+    required this.readOnlyTotal,
+    required this.editable,
+  });
+
+  final CountEditor? editor;
+  final int readOnlyTotal;
+  final bool editable;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final e = editor;
+    final total = e?.total ?? readOnlyTotal;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.34),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                thousands(total),
+                style: text.displaySmall?.copyWith(color: Colors.white),
+              ),
+              const SizedBox(width: 7),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(
+                  'fingerlings',
+                  style: text.bodyMedium?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (e != null && e.edited)
+                TextButton(
+                  onPressed: e.clearEdits,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white.withValues(alpha: 0.75),
+                    minimumSize: const Size(0, 34),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'Undo my edits',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              MarkerLegend(
+                color: AppColors.hiVis,
+                label: 'Detected',
+                value: e?.autoCount ?? readOnlyTotal,
+                dark: true,
+              ),
+              if (e != null) ...[
+                MarkerLegend(
+                  color: const Color(0xFF3BE38F),
+                  label: 'You added',
+                  value: e.added,
+                  dark: true,
+                ),
+                MarkerLegend(
+                  color: Colors.white.withValues(alpha: 0.45),
+                  label: 'You removed',
+                  value: e.removed,
+                  dark: true,
+                ),
+              ],
+            ],
+          ),
+          if (e != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text(
+                  'Sensitivity',
+                  style: text.bodySmall?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
+                ),
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderThemeData(
+                      activeTrackColor: AppColors.hiVis,
+                      inactiveTrackColor: Colors.white.withValues(alpha: 0.22),
+                      thumbColor: Colors.white,
+                      overlayColor: Colors.white.withValues(alpha: 0.12),
+                      trackHeight: 5,
+                    ),
+                    child: Slider(
+                      value: e.sensitivity,
+                      onChanged: (v) => e.sensitivity = v,
+                    ),
+                  ),
+                ),
+                Text(
+                  e.sensitivityLabel,
+                  style: text.bodySmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              'Tap a ring to drop it. Tap open water to add one.',
+              style: text.bodySmall?.copyWith(
+                color: Colors.white.withValues(alpha: 0.55),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
