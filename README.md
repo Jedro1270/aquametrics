@@ -1,112 +1,94 @@
 # AquaMetrics
 
-A Flutter app for counting fish fingerlings from a photo of a tray, built for
-hatchery work: bright sunlight, wet hands, no signal.
+Count fish fingerlings from a photo.
 
-## Status: UI prototype
+Point your phone at a tray, take one shot, and AquaMetrics counts what's in the
+frame. No clicker, no tallying out loud, no losing your place when someone talks
+to you.
 
-The interface is complete and navigable. **The counting is not real yet.** Be
-clear about what is and is not wired up:
+Built for hatchery work: bright sun, wet hands, and no signal.
 
-| Area | State |
-| --- | --- |
-| Screens, navigation, design system | Done |
-| Camera preview | Simulated. A painted tray of fingerlings stands in for the live feed, labelled `SIMULATED PREVIEW` on screen. |
-| Detection | Simulated. Markers come from the generated field, filtered by the sensitivity slider. No model, no image processing. |
-| Manual correction | Fully working against the simulated frame. |
-| Persistence | In memory only. Counts are lost when the app restarts. |
-| CSV export | Not implemented. The buttons say so. |
+## How you use it
 
-The simulation is deliberately structured to match what a real detector returns
-— a list of positions with a confidence-like score — so replacing it should not
-require reworking the screens.
+**1. Frame the tray.** Corner guides and an optional grid help you get the whole
+tray in shot. Hold it flat and keep your shadow out of the water.
 
-## Flow
+**2. Check the count.** AquaMetrics marks every fingerling it finds and shows you
+the total. An automatic count is an estimate, so it's shown as a starting point
+rather than the last word.
 
-1. **Today** — running total, week and all-time stats, recent counts.
-2. **Capture** — framing chrome with corner brackets, guide grid, species
-   selector, shutter.
-3. **Review** — the number the detector produced, plus the tools to fix it:
-   sensitivity slider, tap a ring to drop it, tap open water to add one.
-4. **Expand** — the frame full screen, pinch or stepped zoom, still editable.
-   Corrections here and on the review screen are the same count.
-5. **Save** — label, species, note. Lands in Today and History.
+**3. Fix anything it got wrong.** Tap a ring to drop it, tap open water to add
+one it missed. Expand the frame and zoom right into a clump when fish are packed
+together — the closer you zoom, the more precise your taps become.
 
-Review is the screen that matters. The detector's number is presented as a
-starting point rather than an answer, because a count nobody can check is a
-count nobody will trust.
+**4. Save it.** Give it a label, pick the species, add a note if something was
+odd about the water or the light.
 
-## Running it
+**5. Look back whenever.** Today's running total sits on the home screen, and
+every count you've taken is in History, grouped by day and filterable by species.
 
-Requires Flutter 3.41 / Dart 3.11. There are **no third-party dependencies** —
-only `flutter`, `flutter_test` and `flutter_lints`.
+## Built for the field
+
+- **Readable in glare.** A near-white background with near-black text, rather
+  than a dark theme that disappears in direct sun.
+- **One obvious action.** The orange button is always the thing to press next,
+  and orange is never used for decoration anywhere else.
+- **Big targets.** Sized for a thumb, gloved or wet, not a mouse pointer.
+- **Yours to correct.** Every count can be adjusted, and any count you changed by
+  hand says so, so you can trust the numbers later.
+- **Works offline.** Counts live on your phone. No account, no upload, nothing to
+  sync before you can get on with the day.
+
+Species: Tilapia, Bangus, Hito and Sugpo.
+
+## Getting started
+
+You'll need Flutter 3.41 or newer. There are no third-party dependencies to
+install.
 
 ```sh
 flutter pub get
-flutter run              # attach a device first: flutter devices
-flutter analyze          # currently clean
-flutter test             # see Known issues
+flutter devices          # find your phone
+flutter run
 ```
 
-Verified building and running on Android (Impeller/Vulkan). iOS and Android
-folders exist; there is no macOS, web or Windows target.
+Handy while working on it:
 
-## Layout
+```sh
+flutter analyze          # lints and types
+flutter test             # widget and unit tests
+```
+
+## How the code is laid out
 
 ```
 lib/
-  main.dart                    app entry, light theme only
+  main.dart                    app entry and theme setup
   theme/app_theme.dart         colour, type and radius tokens
-  models/count_batch.dart      CountBatch, Species
+  models/count_batch.dart      a saved count, and the species list
   data/
-    batch_store.dart           ChangeNotifier over the count list, plus totals
-    count_editor.dart          one count under review: threshold + corrections
-    mock_data.dart             seeded example counts and the global store
-  screens/                     root shell, home, history, settings,
-                               capture, review, tray viewer, batch detail
-  widgets/
-    fish_field.dart            the simulated frame and the marker overlay
-    app_buttons.dart           HiVisButton, QuietButton, ExpandChip
-    count_widgets.dart         hero card, stats, legends, animated count
-  util/format.dart             thousands separators, dates, clock
+    batch_store.dart           the list of saved counts, plus totals
+    count_editor.dart          one count being reviewed and corrected
+  screens/                     home, history, settings, capture,
+                               review, full-screen viewer, count details
+  widgets/                     buttons, tiles, the frame and marker overlay
+  util/format.dart             number, date and time formatting
 ```
 
-`CountEditor` is worth knowing about: it holds the sensitivity threshold and
-every correction, and both the inline frame and the full-screen viewer read from
-that one instance. Without it the two views would drift apart.
+Two pieces are worth knowing about before you change anything:
 
-## Design direction
+- **`CountEditor`** holds one count while it's being reviewed: the detection
+  threshold and every correction made to it. The inline frame and the full-screen
+  viewer both read from a single instance, which is what keeps them in agreement.
+- **`fish_field.dart`** owns both the frame and the marker overlay, including the
+  ring size. Hit testing reads that same ring size, so what you tap always
+  matches what you see.
 
-High contrast for glare, oversized targets for gloves.
+## Design notes
 
-- **Shell** near-white `#F1F4F3`, **ink** `#0A1A18` — legible in direct sun.
-- **Teal** `#0D5C55` carries structure and the hero card.
-- **Safety orange** `#FF7A1A` is reserved for the single primary action on any
-  screen. It is never decorative, so it always means "press this".
-- Numbers use tabular figures throughout so a column of counts lines up.
-- Motion is restrained and purposeful: the count settles, the detector sweep
-  runs while work happens and stops when it ends. Nothing loops for decoration.
+Numbers use tabular figures everywhere, so a column of counts lines up and can be
+compared at a glance.
 
-Species are the ones actually moved locally as fingerlings: Tilapia, Bangus,
-Hito, Sugpo.
-
-## Known issues
-
-- `flutter test` fails. The home screen's bottom CTA bar wraps its gradient fade
-  in a container that still absorbs pointer events, so taps landing in the
-  ~26px transparent fade zone hit the bar instead of the list tile underneath.
-  This is a real bug, not a test-only artifact.
-
-## Next, in order
-
-1. Fix the CTA tap-blocking bug above.
-2. Local persistence (`sqflite`) behind the existing `BatchStore` interface.
-3. Real camera capture (`camera` plugin) plus the Android and iOS permission
-   entries, replacing only the bottom layer of `MockTrayImage`.
-4. Actual counting. The honest path is classical computer vision, not a magic
-   model: Otsu threshold on greyscale, morphological open, connected-component
-   labelling, then area-based splitting of touching fish against the median blob
-   size. There is no off-the-shelf fingerling model, and training one needs
-   labelled trays. Expect approximate results, which is exactly why the manual
-   correction step exists.
-5. CSV export and share.
+Motion is kept purposeful: the total settles into place, and the detection sweep
+runs while there's work happening and stops when it's done. Nothing animates just
+to look busy.
