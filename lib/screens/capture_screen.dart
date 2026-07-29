@@ -62,12 +62,15 @@ class _CaptureScreenState extends State<CaptureScreen> {
                       onPressed: () => Navigator.of(context).pop(),
                       tooltip: 'Cancel',
                     ),
-                    const Spacer(),
-                    Text(
-                      'Frame the tray',
-                      style: text.titleMedium?.copyWith(color: Colors.white),
+                    Expanded(
+                      child: Text(
+                        'Frame the tray',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.titleMedium?.copyWith(color: Colors.white),
+                      ),
                     ),
-                    const Spacer(),
                     ViewfinderIconButton(
                       icon: _grid
                           ? Icons.grid_on_rounded
@@ -235,12 +238,16 @@ class _HintPill extends StatelessWidget {
         children: [
           Icon(Icons.wb_sunny_outlined, size: 15, color: Colors.white),
           SizedBox(width: 7),
-          Text(
-            'Hold the tray flat  ·  keep your shadow out',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              'Hold the tray flat  ·  keep your shadow out',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -304,12 +311,16 @@ class _SpeciesButton extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                species.label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+              Flexible(
+                child: Text(
+                  species.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const SizedBox(width: 2),

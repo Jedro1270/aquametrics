@@ -7,11 +7,25 @@ import '../util/format.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/count_widgets.dart';
 import '../widgets/fish_field.dart';
+import 'tray_viewer_screen.dart';
 
 class BatchDetailScreen extends StatelessWidget {
   const BatchDetailScreen({super.key, required this.batch});
 
   final CountBatch batch;
+
+  void _expand(BuildContext context, FishField tray) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => TrayViewerScreen.readOnly(
+          tray: tray,
+          markers: tray.spots,
+          title: batch.label,
+        ),
+      ),
+    );
+  }
 
   Future<void> _confirmDelete(BuildContext context) async {
     final ok = await showDialog<bool>(
@@ -67,7 +81,22 @@ class BatchDetailScreen extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: 4 / 3,
-            child: MockTrayImage(field: tray, markers: tray.spots),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: MockTrayImage(
+                    field: tray,
+                    markers: tray.spots,
+                    onTapNormalised: (_) => _expand(context, tray),
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: ExpandChip(onTap: () => _expand(context, tray)),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           Text(batch.label, style: text.headlineMedium),
@@ -78,10 +107,14 @@ class BatchDetailScreen extends StatelessWidget {
                 label: batch.species.label,
                 tint: batch.species.tint,
               ),
-              Text(
-                '  ·  ${relativeDay(batch.capturedAt)}, '
-                '${clockTime(batch.capturedAt)}',
-                style: text.bodySmall,
+              Flexible(
+                child: Text(
+                  '  ·  ${relativeDay(batch.capturedAt)}, '
+                  '${clockTime(batch.capturedAt)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.bodySmall,
+                ),
               ),
             ],
           ),
@@ -99,13 +132,21 @@ class BatchDetailScreen extends StatelessWidget {
                 const Eyebrow('Final count'),
                 const SizedBox(height: 6),
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(thousands(batch.total), style: text.displayMedium),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.bottomLeft,
+                        child: Text(
+                          thousands(batch.total),
+                          style: text.displayMedium,
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.only(bottom: 6),
                       child: Text(
                         'fingerlings',
                         style: text.bodyMedium?.copyWith(

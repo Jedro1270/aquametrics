@@ -53,16 +53,21 @@ class BatchTile extends StatelessWidget {
                     const SizedBox(height: 5),
                     Row(
                       children: [
-                        SpeciesTag(
-                          label: batch.species.label,
-                          tint: batch.species.tint,
-                        ),
-                        if (showTime) ...[
-                          Text(
-                            '  ·  ${clockTime(batch.capturedAt)}',
-                            style: text.bodySmall,
+                        Flexible(
+                          child: SpeciesTag(
+                            label: batch.species.label,
+                            tint: batch.species.tint,
                           ),
-                        ],
+                        ),
+                        if (showTime)
+                          Flexible(
+                            child: Text(
+                              '  ·  ${clockTime(batch.capturedAt)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: text.bodySmall,
+                            ),
+                          ),
                       ],
                     ),
                   ],
@@ -73,9 +78,12 @@ class BatchTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    thousands(batch.total),
-                    style: text.displaySmall?.copyWith(fontSize: 24),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      thousands(batch.total),
+                      style: text.displaySmall?.copyWith(fontSize: 24),
+                    ),
                   ),
                   if (batch.wasCorrected) ...[
                     const SizedBox(height: 5),

@@ -119,6 +119,50 @@ class QuietButton extends StatelessWidget {
   }
 }
 
+/// Overlay affordance for opening a frame full-screen. Sits on the image itself
+/// so the way to get a closer look is where the eye already is.
+class ExpandChip extends StatelessWidget {
+  const ExpandChip({super.key, required this.onTap, this.label = 'Expand'});
+
+  final VoidCallback onTap;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.55),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 13),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.open_in_full_rounded,
+                size: 15,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Round icon button used on the dark viewfinder chrome.
 class ViewfinderIconButton extends StatelessWidget {
   const ViewfinderIconButton({

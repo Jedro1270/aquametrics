@@ -41,6 +41,14 @@ class FishField {
   /// so a dense tray reads as small fish rather than overlapping blobs.
   final double spacing;
 
+  /// Drawn marker ring radius, as a multiple of [spacing] in short-side units.
+  /// Hit testing reads this too, so what you tap matches what you see.
+  static const markerRing = 0.5;
+
+  /// Aspect ratio every marker surface is laid out at. Normalised coordinates
+  /// are therefore anisotropic, and hit testing has to correct for it.
+  static const aspect = 4 / 3;
+
   static const _pad = 0.06;
 
   factory FishField.generate({required int seed, required int count}) {
@@ -151,7 +159,7 @@ class _MarkerPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (markers.isEmpty || progress <= 0) return;
     final base = math.min(size.width, size.height);
-    final r = base * field.spacing * 0.5;
+    final r = base * field.spacing * FishField.markerRing;
     final shown = (markers.length * progress).ceil();
 
     final halo = Paint()
@@ -209,7 +217,9 @@ class MockTrayImage extends StatelessWidget {
         builder: (context, constraints) {
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapDown: onTapNormalised == null
+            // onTapUp rather than onTapDown: a tap must win the gesture arena
+            // first, so panning a zoomed frame cannot drop a phantom marker.
+            onTapUp: onTapNormalised == null
                 ? null
                 : (details) => onTapNormalised!(
                     Offset(

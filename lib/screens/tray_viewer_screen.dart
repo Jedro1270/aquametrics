@@ -46,6 +46,7 @@ class _TrayViewerScreenState extends State<TrayViewerScreen> {
   final _idle = ValueNotifier<int>(0);
 
   double _scale = 1;
+  Size _viewport = Size.zero;
 
   Listenable get _refresh => widget.editor ?? _idle;
   bool get _editable => widget.editor != null;
@@ -73,6 +74,29 @@ class _TrayViewerScreenState extends State<TrayViewerScreen> {
   }
 
   void _resetZoom() => _transform.value = Matrix4.identity();
+
+  /// Stepped zoom button. A double-tap recogniser would compete with the
+  /// tap-to-correct gesture and make marker edits feel unreliable, and pinching
+  /// with one wet hand is awkward, so the steps are an explicit control.
+  void _stepZoom() {
+    final next = switch (_scale) {
+      < 1.9 => 2.0,
+      < 3.9 => 4.0,
+      _ => 1.0,
+    };
+    if (next == 1.0 || _viewport.isEmpty) {
+      _resetZoom();
+      return;
+    }
+    // Scale about the centre of the viewport: p' = next * p + c * (1 - next).
+    final cx = _viewport.width / 2;
+    final cy = _viewport.height / 2;
+    _transform.value = Matrix4.identity()
+      ..setEntry(0, 0, next)
+      ..setEntry(1, 1, next)
+      ..setEntry(0, 3, cx * (1 - next))
+      ..setEntry(1, 3, cy * (1 - next));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -110,8 +134,8 @@ class _TrayViewerScreenState extends State<TrayViewerScreen> {
                           ),
                           Text(
                             zoomed
-                                ? '${_scale.toStringAsFixed(1)}× zoom'
-                                : 'Pinch or double-tap to zoom',
+                                ? '${_scale.toStringAsFixed(1)}× — drag to pan'
+                                : 'Pinch or use + to zoom in',
                             style: text.bodySmall?.copyWith(
                               color: Colors.white.withValues(alpha: 0.6),
                             ),
@@ -119,34 +143,55 @@ class _TrayViewerScreenState extends State<TrayViewerScreen> {
                         ],
                       ),
                     ),
-                    if (zoomed)
+                    if (zoomed) ...[
                       ViewfinderIconButton(
                         icon: Icons.zoom_out_map_rounded,
                         onPressed: _resetZoom,
                         tooltip: 'Fit to screen',
                       ),
+                      const SizedBox(width: 8),
+                    ],
+                    ViewfinderIconButton(
+                      icon: _scale < 3.9
+                          ? Icons.add_rounded
+                          : Icons.refresh_rounded,
+                      onPressed: _stepZoom,
+                      tooltip: _scale < 3.9 ? 'Zoom in' : 'Back to fit',
+                    ),
                   ],
                 ),
               ),
               Expanded(
-                child: ListenableBuilder(
-                  listenable: _refresh,
-                  builder: (context, _) => InteractiveViewer(
-                    transformationController: _transform,
-                    minScale: 1,
-                    maxScale: 8,
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: 4 / 3,
-                        child: MockTrayImage(
-                          field: _tray,
-                          markers: _markers,
-                          radius: 0,
-                          onTapNormalised: widget.editor?.tapAt,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    _viewport = constraints.biggest;
+                    return ListenableBuilder(
+                      listenable: _refresh,
+                      builder: (context, _) => InteractiveViewer(
+                        transformationController: _transform,
+                        minScale: 1,
+                        maxScale: 8,
+                        child: Center(
+                          child: AspectRatio(
+                            aspectRatio: 4 / 3,
+                            child: MockTrayImage(
+                              field: _tray,
+                              markers: _markers,
+                              radius: 0,
+                              // Hand the editor the live zoom so the hit radius
+                              // tightens as the operator magnifies.
+                              onTapNormalised: _editable
+                                  ? (p) => widget.editor!.tapAt(
+                                      p,
+                                      scale: _scale,
+                                    )
+                                  : null,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ),
               ListenableBuilder(
@@ -195,24 +240,42 @@ class _BottomPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                thousands(total),
-                style: text.displaySmall?.copyWith(color: Colors.white),
-              ),
-              const SizedBox(width: 7),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  'fingerlings',
-                  style: text.bodyMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.6),
-                  ),
+              // Grouped under one Expanded so the button keeps its natural
+              // width instead of fighting the number for flex space.
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.bottomLeft,
+                        child: Text(
+                          thousands(total),
+                          style: text.displaySmall?.copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 3),
+                        child: Text(
+                          'fingerlings',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: text.bodyMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const Spacer(),
               if (e != null && e.edited)
                 TextButton(
                   onPressed: e.clearEdits,
@@ -289,7 +352,8 @@ class _BottomPanel extends StatelessWidget {
               ],
             ),
             Text(
-              'Tap a ring to drop it. Tap open water to add one.',
+              'Tap a ring to drop it, open water to add one. Zoom in for finer '
+              'taps.',
               style: text.bodySmall?.copyWith(
                 color: Colors.white.withValues(alpha: 0.55),
               ),

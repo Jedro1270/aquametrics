@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
@@ -56,13 +58,35 @@ class CountEditor extends ChangeNotifier {
     _ => 'Inclusive',
   };
 
-  /// Drops the nearest marker under [n], or drops a new one there if the tap
-  /// landed on open water. [n] is normalised to 0..1.
-  void tapAt(Offset n) {
-    final hit = tray.spacing * 0.72;
+  /// Finger tolerance around the visible ring at 1×, as a multiple of spacing.
+  /// It shrinks in proportion to zoom: at 1× a tap is a rough gesture and needs
+  /// help landing, but someone zoomed to 4× is pointing at something specific,
+  /// and keeping the 1× tolerance there is what makes an intended "add" grab the
+  /// nearest existing marker instead.
+  static const _slopAt1x = 0.34;
+
+  /// Distance between two normalised points, in short-side units.
+  ///
+  /// Marker surfaces are 4:3 and the ring radius derives from the shorter side,
+  /// so a raw normalised distance would describe an ellipse stretched across the
+  /// wider axis rather than the circle the operator sees.
+  double _gap(Offset a, Offset b) {
+    final dx = (a.dx - b.dx) * FishField.aspect;
+    final dy = a.dy - b.dy;
+    return math.sqrt(dx * dx + dy * dy);
+  }
+
+  double _hitRadius(double scale) =>
+      tray.spacing * (FishField.markerRing + _slopAt1x / math.max(scale, 1));
+
+  /// Drops the nearest marker under [n], or adds one there if the tap landed on
+  /// open water. [n] is normalised to 0..1, and [scale] is the current zoom, so
+  /// that zooming in genuinely buys precision.
+  void tapAt(Offset n, {double scale = 1}) {
+    final hit = _hitRadius(scale);
 
     for (var i = _manual.length - 1; i >= 0; i--) {
-      if ((_manual[i].p - n).distance < hit) {
+      if (_gap(_manual[i].p, n) < hit) {
         _manual.removeAt(i);
         notifyListeners();
         return;
@@ -72,7 +96,7 @@ class CountEditor extends ChangeNotifier {
     int? nearest;
     var best = hit;
     for (final i in _kept) {
-      final d = (tray.spots[i].p - n).distance;
+      final d = _gap(tray.spots[i].p, n);
       if (d < best) {
         best = d;
         nearest = i;

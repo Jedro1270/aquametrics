@@ -93,27 +93,36 @@ class HomeScreen extends StatelessWidget {
           left: 0,
           right: 0,
           bottom: 0,
-          child: IgnorePointer(
-            ignoring: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(16, 26, 16, 14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    AppColors.shell.withValues(alpha: 0),
-                    AppColors.shell,
-                    AppColors.shell,
-                  ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // The fade must not take pointer events, or it silently swallows
+              // taps on the list tile scrolling underneath it.
+              IgnorePointer(
+                child: Container(
+                  height: 28,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppColors.shell.withValues(alpha: 0),
+                        AppColors.shell,
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              child: HiVisButton(
-                label: 'Count fingerlings',
-                icon: Icons.center_focus_strong_rounded,
-                onPressed: () => _startCount(context),
+              Container(
+                color: AppColors.shell,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                child: HiVisButton(
+                  label: 'Count fingerlings',
+                  icon: Icons.center_focus_strong_rounded,
+                  onPressed: () => _startCount(context),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ],
@@ -139,17 +148,26 @@ class _Masthead extends StatelessWidget {
           child: const Icon(Icons.waves_rounded, color: Colors.white, size: 21),
         ),
         const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('AquaMetrics', style: text.titleLarge),
-            Text(
-              'Fingerling counter',
-              style: text.bodySmall?.copyWith(color: AppColors.inkFaint),
-            ),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'AquaMetrics',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: text.titleLarge,
+              ),
+              Text(
+                'Fingerling counter',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: text.bodySmall?.copyWith(color: AppColors.inkFaint),
+              ),
+            ],
+          ),
         ),
-        const Spacer(),
+        const SizedBox(width: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
           decoration: BoxDecoration(

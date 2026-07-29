@@ -121,19 +121,27 @@ class HeroCountCard extends StatelessWidget {
                 children: [
                   Eyebrow('Today', color: Colors.white.withValues(alpha: 0.62)),
                   const SizedBox(height: 12),
+                  // Bottom-aligned rather than baseline-aligned so the number
+                  // can sit in a FittedBox: a five-figure total, or a large
+                  // system font scale, scales down instead of overflowing.
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      AnimatedCount(
-                        value: total,
-                        style: text.displayLarge?.copyWith(
-                          color: Colors.white,
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.bottomLeft,
+                          child: AnimatedCount(
+                            value: total,
+                            style: text.displayLarge?.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
                           'fingerlings',
                           style: text.bodyLarge?.copyWith(
@@ -219,8 +227,14 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
-        const Spacer(),
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+        ),
         if (actionLabel != null)
           TextButton(
             onPressed: onAction,
@@ -258,7 +272,14 @@ class SpeciesTag extends StatelessWidget {
           decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
       ],
     );
   }
@@ -297,10 +318,14 @@ class MarkerLegend extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Text(
-                thousands(value),
-                style: text.titleMedium?.copyWith(
-                  color: dark ? Colors.white : AppColors.ink,
+              Flexible(
+                child: Text(
+                  thousands(value),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.titleMedium?.copyWith(
+                    color: dark ? Colors.white : AppColors.ink,
+                  ),
                 ),
               ),
             ],
@@ -308,6 +333,8 @@ class MarkerLegend extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: text.bodySmall?.copyWith(
               fontSize: 11.5,
               color: dark
