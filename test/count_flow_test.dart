@@ -88,6 +88,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('SIMULATED PREVIEW'), findsNothing);
 
     await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
     await tester.pump();
