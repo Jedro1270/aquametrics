@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'capture_screen.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
 import 'settings_screen.dart';
 
 class RootShell extends StatefulWidget {
-  const RootShell({super.key});
+  const RootShell({super.key, this.pickImage});
+
+  final ImagePickerCallback? pickImage;
 
   @override
   State<RootShell> createState() => _RootShellState();
@@ -24,7 +27,10 @@ class _RootShellState extends State<RootShell> {
         child: IndexedStack(
           index: _index,
           children: [
-            HomeScreen(onSeeAll: () => setState(() => _index = 1)),
+            HomeScreen(
+              onSeeAll: () => setState(() => _index = 1),
+              pickImage: widget.pickImage,
+            ),
             const HistoryScreen(),
             const SettingsScreen(),
           ],

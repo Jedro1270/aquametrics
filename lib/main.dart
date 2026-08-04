@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'screens/capture_screen.dart';
 import 'screens/root_shell.dart';
 import 'theme/app_theme.dart';
 import 'vision/roboflow_detector.dart';
@@ -26,17 +27,21 @@ void main() {
   if (roboflowKey != null) {
     globalRoboflowDetector = RoboflowDetector(apiKey: roboflowKey);
   } else {
-    YoloDetector.create().then((d) {
-      globalYoloDetector = d;
-    }).catchError((Object _) {
-      // Model load failed — the app still runs, detection returns empty.
-    });
+    YoloDetector.create()
+        .then((d) {
+          globalYoloDetector = d;
+        })
+        .catchError((Object _) {
+          // Model load failed — the app still runs, detection returns empty.
+        });
   }
   runApp(const AquaMetricsApp());
 }
 
 class AquaMetricsApp extends StatelessWidget {
-  const AquaMetricsApp({super.key});
+  const AquaMetricsApp({super.key, this.pickImage});
+
+  final ImagePickerCallback? pickImage;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +49,7 @@ class AquaMetricsApp extends StatelessWidget {
       title: 'AquaMetrics',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: const RootShell(),
+      home: RootShell(pickImage: pickImage),
     );
   }
 }

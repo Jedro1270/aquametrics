@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,70 +11,188 @@ import '../models/count_batch.dart';
 import '../theme/app_theme.dart';
 import '../vision/count_frame.dart';
 import '../widgets/app_buttons.dart';
-import '../widgets/fish_field.dart';
 import '../widgets/species_pills.dart';
 import 'review_screen.dart';
 
 /// Framing step. Dark by necessity, not for style: the surrounding chrome should
 /// disappear so the operator judges the water, and glare off a white UI would
 /// wash out the preview.
+typedef ImagePickerCallback =
+    Future<XFile?> Function({
+      required ImageSource source,
+      required int imageQuality,
+    });
+
+typedef PhotoFrameDecoder = Future<CountFrame> Function(Uint8List bytes);
+
+@visibleForTesting
+PhotoFrameDecoder? debugPhotoFrameDecoder;
+
 class CaptureScreen extends StatefulWidget {
-  const CaptureScreen({super.key, this.species = Species.tilapia});
+  const CaptureScreen({
+    super.key,
+    this.species = Species.tilapia,
+    this.pickImage,
+  });
 
   final Species species;
+  final ImagePickerCallback? pickImage;
 
   @override
   State<CaptureScreen> createState() => _CaptureScreenState();
 }
 
-class _CaptureScreenState extends State<CaptureScreen> {
+class _CaptureScreenState extends State<CaptureScreen>
+    with WidgetsBindingObserver {
   late Species _species = widget.species;
   bool _torch = false;
   bool _grid = true;
   bool _speciesOpen = false;
+  bool _capturing = false;
+  bool _initializingCamera = false;
+  CameraController? _camera;
+  String? _cameraError;
 
-  /// Stands in for the live preview until the camera plugin is wired up.
-  final SimulatedFrame _preview = SimulatedFrame.seeded(seed: 20740);
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (widget.pickImage == null) unawaited(_initializeCamera());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (widget.pickImage != null) return;
+    if (state == AppLifecycleState.inactive) {
+      unawaited(_disposeCamera());
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(_initializeCamera());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _camera?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initializeCamera() async {
+    if (_camera != null || _initializingCamera || widget.pickImage != null) {
+      return;
+    }
+    _initializingCamera = true;
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        _showCameraError('No camera is available on this device.');
+        return;
+      }
+      final description = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+      final camera = CameraController(
+        description,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+      await camera.initialize();
+      if (!mounted) {
+        await camera.dispose();
+        return;
+      }
+      setState(() {
+        _camera = camera;
+        _cameraError = null;
+      });
+    } on CameraException catch (error) {
+      _showCameraError(error.description ?? error.code);
+    } finally {
+      _initializingCamera = false;
+    }
+  }
+
+  Future<void> _disposeCamera() async {
+    final camera = _camera;
+    _camera = null;
+    if (mounted) setState(() {});
+    await camera?.dispose();
+  }
+
+  void _showCameraError(String message) {
+    if (mounted) setState(() => _cameraError = message);
+  }
 
   void _review(CountFrame frame, int seed) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ReviewScreen(
-          frame: frame,
-          seed: seed,
-          species: _species,
-        ),
+        builder: (_) =>
+            ReviewScreen(frame: frame, seed: seed, species: _species),
       ),
     );
   }
 
-  /// Shutter on a simulated tray. The camera plugin lands later; until then the
-  /// operator still gets a frame the detector has to actually count, which is
-  /// the part that needed proving.
-  void _capture() {
-    _review(
-      SimulatedFrame.seeded(
-        seed: DateTime.now().millisecondsSinceEpoch % 100000,
-      ),
-      DateTime.now().millisecondsSinceEpoch % 100000,
-    );
+  Future<void> _capture() async {
+    if (widget.pickImage != null) return _pickPhoto(ImageSource.camera);
+    final camera = _camera;
+    if (camera == null || !camera.value.isInitialized || _capturing) return;
+    setState(() => _capturing = true);
+    try {
+      await _reviewPhoto(await camera.takePicture());
+    } on CameraException catch (error) {
+      _showCameraError(error.description ?? error.code);
+    } finally {
+      if (mounted) setState(() => _capturing = false);
+    }
   }
 
-  /// Picks a real photo and counts that. The detector does not know or care
-  /// where its pixels came from, so a gallery shot is the first honest test of
-  /// it.
-  Future<void> _pickPhoto() async {
-    final picker = ImagePicker();
-    final photo = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 92,
-    );
+  Future<void> _toggleTorch() async {
+    final camera = _camera;
+    if (camera == null || !camera.value.isInitialized) return;
+    final torch = !_torch;
+    try {
+      await camera.setFlashMode(torch ? FlashMode.torch : FlashMode.off);
+      if (mounted) setState(() => _torch = torch);
+    } on CameraException catch (error) {
+      _showCameraError(error.description ?? error.code);
+    }
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    final photo =
+        await (widget.pickImage?.call(source: source, imageQuality: 92) ??
+            ImagePicker().pickImage(source: source, imageQuality: 92));
     if (photo == null || !mounted) return;
+    await _reviewPhoto(photo);
+  }
+
+  Future<void> _reviewPhoto(XFile photo) async {
     final bytes = await photo.readAsBytes();
     if (!mounted) return;
-    final frame = await PhotoFrame.decode(bytes);
+    final frame =
+        await (debugPhotoFrameDecoder?.call(bytes) ?? PhotoFrame.decode(bytes));
     if (!mounted) return;
     _review(frame, photo.name.hashCode & 0x7fffffff);
+  }
+
+  Widget _cameraPreview() {
+    final camera = _camera;
+    if (widget.pickImage != null) return const ColoredBox(color: Colors.black);
+    if (camera?.value.isInitialized ?? false) return CameraPreview(camera!);
+    if (_cameraError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            _cameraError!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+      );
+    }
+    return const Center(child: CircularProgressIndicator(color: Colors.white));
   }
 
   @override
@@ -117,7 +238,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                           ? Icons.flashlight_on_rounded
                           : Icons.flashlight_off_rounded,
                       active: _torch,
-                      onPressed: () => setState(() => _torch = !_torch),
+                      onPressed: _toggleTorch,
                       tooltip: 'Light',
                     ),
                   ],
@@ -129,7 +250,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: CountFrameView(frame: _preview, radius: 20),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: _cameraPreview(),
+                        ),
                       ),
                       Positioned.fill(
                         child: IgnorePointer(
@@ -144,7 +268,6 @@ class _CaptureScreenState extends State<CaptureScreen> {
                         bottom: 14,
                         child: Center(child: const _HintPill()),
                       ),
-                      const Positioned(top: 14, left: 14, child: _SimBadge()),
                     ],
                   ),
                 ),
@@ -186,7 +309,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                         alignment: Alignment.centerRight,
                         child: ViewfinderIconButton(
                           icon: Icons.photo_library_outlined,
-                          onPressed: _pickPhoto,
+                          onPressed: () => _pickPhoto(ImageSource.gallery),
                           tooltip: 'Choose a photo',
                         ),
                       ),
@@ -250,8 +373,7 @@ class _FramingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _FramingPainter old) =>
-      old.showGrid != showGrid;
+  bool shouldRepaint(covariant _FramingPainter old) => old.showGrid != showGrid;
 }
 
 class _HintPill extends StatelessWidget {
@@ -283,32 +405,6 @@ class _HintPill extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Honest label: nothing behind this is a real camera feed yet.
-class _SimBadge extends StatelessWidget {
-  const _SimBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-      ),
-      child: Text(
-        'SIMULATED PREVIEW',
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.85),
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
-        ),
       ),
     );
   }

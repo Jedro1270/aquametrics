@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:aquametrics/data/count_editor.dart';
 import 'package:aquametrics/main.dart';
+import 'package:aquametrics/screens/capture_screen.dart';
 import 'package:aquametrics/vision/count_frame.dart';
 import 'package:aquametrics/vision/fish_detector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 
 /// Walks the capture → review → expand → save flow. Any layout overflow or
 /// failed assertion along the way fails the test, which is the cheapest way to
@@ -39,12 +43,27 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  setUp(runDetectorInline);
-  tearDown(() => debugDetectorRunner = null);
+  setUp(() {
+    runDetectorInline();
+    debugPhotoFrameDecoder = (_) async => SimulatedFrame.seeded(seed: 20740);
+  });
+  tearDown(() {
+    debugDetectorRunner = null;
+    debugPhotoFrameDecoder = null;
+  });
+
+  Future<XFile?> pickTestImage({
+    required ImageSource source,
+    required int imageQuality,
+  }) async {
+    expect(source, ImageSource.camera);
+    expect(imageQuality, 92);
+    return XFile.fromData(Uint8List.fromList([0]), name: 'camera-tray.jpg');
+  }
 
   testWidgets('home shows today\'s total and recent counts', (tester) async {
     usePhoneSurface(tester);
-    await tester.pumpWidget(const AquaMetricsApp());
+    await tester.pumpWidget(AquaMetricsApp(pickImage: pickTestImage));
     await tester.pumpAndSettle();
 
     expect(find.text('AquaMetrics'), findsOneWidget);
@@ -52,9 +71,34 @@ void main() {
     expect(find.text('Pond 3 transfer'), findsWidgets);
   });
 
+  testWidgets('shutter opens the device camera', (tester) async {
+    usePhoneSurface(tester);
+    ImageSource? pickedSource;
+    var pickedImageQuality = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CaptureScreen(
+          pickImage: ({required source, required imageQuality}) async {
+            pickedSource = source;
+            pickedImageQuality = imageQuality;
+            return null;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
+    await tester.pump();
+
+    expect(pickedSource, ImageSource.camera);
+    expect(pickedImageQuality, 92);
+  });
+
   testWidgets('capture leads to a reviewable count', (tester) async {
     usePhoneSurface(tester);
-    await tester.pumpWidget(const AquaMetricsApp());
+    await tester.pumpWidget(AquaMetricsApp(pickImage: pickTestImage));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Count fingerlings'));
@@ -63,6 +107,7 @@ void main() {
 
     // The shutter captures a simulated tray and opens the review screen.
     await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
     expect(find.text('Review count'), findsOneWidget);
 
@@ -75,12 +120,13 @@ void main() {
     tester,
   ) async {
     usePhoneSurface(tester);
-    await tester.pumpWidget(const AquaMetricsApp());
+    await tester.pumpWidget(AquaMetricsApp(pickImage: pickTestImage));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Count fingerlings'));
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
     await settleDetector(tester);
 
@@ -117,12 +163,13 @@ void main() {
     tester,
   ) async {
     usePhoneSurface(tester);
-    await tester.pumpWidget(const AquaMetricsApp());
+    await tester.pumpWidget(AquaMetricsApp(pickImage: pickTestImage));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Count fingerlings'));
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
     await settleDetector(tester);
 
@@ -135,7 +182,7 @@ void main() {
 
   testWidgets('a saved count opens read-only and expands', (tester) async {
     usePhoneSurface(tester);
-    await tester.pumpWidget(const AquaMetricsApp());
+    await tester.pumpWidget(AquaMetricsApp(pickImage: pickTestImage));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Buyer sample — Delgado'));

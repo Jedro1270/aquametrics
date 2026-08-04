@@ -9,14 +9,15 @@ import 'batch_detail_screen.dart';
 import 'capture_screen.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.onSeeAll});
+  const HomeScreen({super.key, required this.onSeeAll, this.pickImage});
 
   /// Switches the shell to the History tab.
   final VoidCallback onSeeAll;
+  final ImagePickerCallback? pickImage;
 
   void _startCount(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const CaptureScreen()),
+      MaterialPageRoute(builder: (_) => CaptureScreen(pickImage: pickImage)),
     );
   }
 
@@ -68,7 +69,8 @@ class HomeScreen extends StatelessWidget {
                 if (recent.isEmpty)
                   const EmptyState(
                     title: 'No counts yet',
-                    body: 'Photograph a tray of fingerlings and the count lands '
+                    body:
+                        'Photograph a tray of fingerlings and the count lands '
                         'here, ready to check.',
                     icon: Icons.center_focus_strong_outlined,
                   )
