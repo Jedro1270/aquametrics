@@ -10,6 +10,13 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    // TFLite/LiteRT models must not be compressed in the APK, or the runtime
+    // cannot memory-map them.
+    aaptOptions {
+        noCompress("tflite")
+        noCompress("lite")
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

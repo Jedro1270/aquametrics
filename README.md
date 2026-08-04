@@ -43,8 +43,8 @@ Species: Tilapia, Bangus, Hito and Sugpo.
 
 ## Getting started
 
-You'll need Flutter 3.41 or newer. There are no third-party dependencies to
-install.
+You'll need Flutter 3.41 or newer. The only third-party dependency is
+`image_picker`, for picking a photo from the gallery.
 
 ```sh
 flutter pub get
@@ -65,21 +65,34 @@ flutter test             # widget and unit tests
 lib/
   main.dart                    app entry and theme setup
   theme/app_theme.dart         colour, type and radius tokens
-  models/count_batch.dart      a saved count, and the species list
+  models/
+    count_batch.dart           a saved count, and the species list
+    fish_field.dart            a simulated tray of fingerlings
+    marker.dart                one ring drawn over a frame
   data/
     batch_store.dart           the list of saved counts, plus totals
     count_editor.dart          one count being reviewed and corrected
+    frame_cache.dart           in-memory cache of saved frames
+  vision/
+    gray_image.dart            single-channel 8-bit image the detector reads
+    tray_raster.dart           renders a FishField into pixels (simulated capture)
+    fish_detector.dart         Otsu → opening → distance transform → watershed
+    count_frame.dart           sealed frame: simulated tray or real photo
   screens/                     home, history, settings, capture,
                                review, full-screen viewer, count details
   widgets/                     buttons, tiles, the frame and marker overlay
   util/format.dart             number, date and time formatting
 ```
 
-Two pieces are worth knowing about before you change anything:
+Three pieces are worth knowing about before you change anything:
 
-- **`CountEditor`** holds one count while it's being reviewed: the detection
-  threshold and every correction made to it. The inline frame and the full-screen
-  viewer both read from a single instance, which is what keeps them in agreement.
+- **`CountEditor`** holds one count while it's being reviewed: the frame, what
+  the detector found, and every correction made to it. The inline frame and the
+  full-screen viewer both read from a single instance, which is what keeps them
+  in agreement.
+- **`fish_detector.dart`** is the counting backend. It takes pixels and returns
+  positions — nothing else. A simulated tray and a real photograph go through
+  the same path, which is the only way the simulator is worth anything as a test.
 - **`fish_field.dart`** owns both the frame and the marker overlay, including the
   ring size. Hit testing reads that same ring size, so what you tap always
   matches what you see.

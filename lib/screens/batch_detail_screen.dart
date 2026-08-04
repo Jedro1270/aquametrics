@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../data/frame_cache.dart';
 import '../data/mock_data.dart';
 import '../models/count_batch.dart';
+import '../models/fish_field.dart';
+import '../models/marker.dart';
 import '../theme/app_theme.dart';
 import '../util/format.dart';
+import '../vision/count_frame.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/count_widgets.dart';
 import '../widgets/fish_field.dart';
@@ -14,13 +18,28 @@ class BatchDetailScreen extends StatelessWidget {
 
   final CountBatch batch;
 
-  void _expand(BuildContext context, FishField tray) {
+  /// What to show for this count: the photograph it was made from if it is still
+  /// in the session cache, otherwise a simulated tray of the same size. The
+  /// latter is a stand-in for persistence, which lands next.
+  SavedFrame _frame() {
+    final cached = frameCache[batch.id];
+    if (cached != null) return cached;
+    final field = FishField.generate(seed: batch.seed, count: batch.total);
+    return SavedFrame(
+      frame: SimulatedFrame(field),
+      markers: [for (final spot in field.spots) Marker(p: spot.p)],
+      ringRadius: FishField.markerRing,
+    );
+  }
+
+  void _expand(BuildContext context, SavedFrame frame) {
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => TrayViewerScreen.readOnly(
-          tray: tray,
-          markers: tray.spots,
+          frame: frame.frame,
+          markers: frame.markers,
+          ringRadius: frame.ringRadius,
           title: batch.label,
         ),
       ),
@@ -60,7 +79,7 @@ class BatchDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final tray = FishField.generate(seed: batch.seed, count: batch.total);
+    final frame = _frame();
 
     return Scaffold(
       backgroundColor: AppColors.shell,
@@ -80,20 +99,21 @@ class BatchDetailScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
         children: [
           AspectRatio(
-            aspectRatio: 4 / 3,
+            aspectRatio: frame.frame.aspect,
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: MockTrayImage(
-                    field: tray,
-                    markers: tray.spots,
-                    onTapNormalised: (_) => _expand(context, tray),
+                  child: CountFrameView(
+                    frame: frame.frame,
+                    markers: frame.markers,
+                    ringRadius: frame.ringRadius,
+                    onTapNormalised: (_) => _expand(context, frame),
                   ),
                 ),
                 Positioned(
                   top: 10,
                   right: 10,
-                  child: ExpandChip(onTap: () => _expand(context, tray)),
+                  child: ExpandChip(onTap: () => _expand(context, frame)),
                 ),
               ],
             ),

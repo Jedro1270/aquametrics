@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>AquaMetrics needs access to your photo library to count fingerlings from a tray photo.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>AquaMetrics needs camera access to capture tray photos for counting.</string>
 </dict>
 </plist>

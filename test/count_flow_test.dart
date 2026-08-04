@@ -1,4 +1,7 @@
+import 'package:aquametrics/data/count_editor.dart';
 import 'package:aquametrics/main.dart';
+import 'package:aquametrics/vision/count_frame.dart';
+import 'package:aquametrics/vision/fish_detector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,11 +18,29 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
   }
 
-  /// Clears the simulated detector pass and the marker reveal animation.
+  /// Detection runs through a platform channel in production. In a widget test
+  /// the TFLite runtime is unavailable, so the editor is pointed at a mock
+  /// runner that reads the simulated field's spots and returns them as
+  /// detections — enough to exercise the review/correction/save flow.
+  void runDetectorInline() {
+    debugDetectorRunner = (frame, sensitivity) async {
+      if (frame is! SimulatedFrame) return const DetectorResult.empty();
+      return DetectorResult(
+        fish: [for (final s in frame.field.spots) s.p],
+        ringRadius: 0.03,
+        threshold: 100,
+      );
+    };
+  }
+
+  /// Clears the detector pass and the marker reveal animation.
   Future<void> settleDetector(WidgetTester tester) async {
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
   }
+
+  setUp(runDetectorInline);
+  tearDown(() => debugDetectorRunner = null);
 
   testWidgets('home shows today\'s total and recent counts', (tester) async {
     usePhoneSurface(tester);
@@ -40,9 +61,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Frame the tray'), findsOneWidget);
 
-    // The gallery button shares the capture path with the shutter and its icon
-    // is unambiguous while the home route is still in the tree.
-    await tester.tap(find.byIcon(Icons.photo_library_outlined));
+    // The shutter captures a simulated tray and opens the review screen.
+    await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
     await tester.pumpAndSettle();
     expect(find.text('Review count'), findsOneWidget);
 
@@ -60,7 +80,7 @@ void main() {
 
     await tester.tap(find.text('Count fingerlings'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.photo_library_outlined));
+    await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
     await tester.pumpAndSettle();
     await settleDetector(tester);
 
@@ -102,7 +122,7 @@ void main() {
 
     await tester.tap(find.text('Count fingerlings'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.photo_library_outlined));
+    await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
     await tester.pumpAndSettle();
     await settleDetector(tester);
 

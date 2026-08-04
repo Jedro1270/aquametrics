@@ -17,7 +17,15 @@ Run both before considering a change done:
 
 ```sh
 flutter analyze     # must be clean, including info-level lints
-flutter test        # test/count_flow_test.dart, 5 flow tests
+flutter test        # 26 tests: 9 detector, 6 editor, 5 flow, 2 calibration,
+                    #          2 roboflow parser, 1 roboflow smoke (skipped without key)
+```
+
+To run the live Roboflow smoke test:
+
+```sh
+flutter test --dart-define=ROBOFLOW_API_KEY=your_key_here \
+    test/roboflow_smoke_test.dart
 ```
 
 ## Gotchas
@@ -35,8 +43,27 @@ flutter test        # test/count_flow_test.dart, 5 flow tests
 - **Transparent overlays swallow taps.** A gradient fade over a scrolling list
   must be wrapped in `IgnorePointer`, or it silently eats taps on the tiles
   underneath. This bit the home screen CTA bar once already.
-- **No third-party dependencies.** Keep it that way unless there is a real need;
-  the whole UI is stock Flutter plus `CustomPainter`.
+- **Third-party dependencies.** Beyond `image_picker` (gallery), the app uses
+  `flutter_vision` (on-device YOLO inference, Android only) and `http` (REST
+  calls to Roboflow). The UI is still stock Flutter plus `CustomPainter`.
+  Don't add more unless there's a real need.
+- **Detector selection at startup.** `main()` checks for a Roboflow API key
+  (passed via `--dart-define=ROBOFLOW_API_KEY=...`). If present, it creates a
+  `RoboflowDetector` (cloud inference via the "fingerlings-dataset-new-n0llf"
+  workflow). If not, it loads the on-device YOLO model from
+  `assets/models/fish.tflite`. `CountEditor` tries Roboflow first, then YOLO,
+  then returns empty — so the app never crashes on detection failure.
+- **Detector runs on the UI isolate.** Both Roboflow (HTTP) and YOLO (platform
+  channel) are async and run on the UI isolate, not via `compute()`. In widget
+  tests, set `debugDetectorRunner` to a function that answers inline —
+  otherwise the test cannot settle around the real detector.
+- **Roboflow API key.** Passed at compile time, not runtime:
+  `flutter run --dart-define=ROBOFLOW_API_KEY=your_key_here`. Get one at
+  app.roboflow.com/settings/api. Never commit the key to the repo.
+- **Corrections are position-keyed, not index-keyed.** Moving the sensitivity
+  slider re-runs the detector and hands back a fresh list of fish in a different
+  order. `CountEditor` stores drops and adds as `Offset` positions, so a
+  correction survives a re-run and still means the fish that was standing there.
 
 ## Deprecated APIs to avoid
 

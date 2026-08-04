@@ -2,81 +2,16 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../models/fish_field.dart';
+import '../models/marker.dart';
 import '../theme/app_theme.dart';
+import '../vision/count_frame.dart';
 
-/// A single fingerling in the mock frame. Positions are normalised to 0..1 so
-/// the same field renders at any size, from a 56px thumbnail to a full screen.
-@immutable
-class FishSpot {
-  const FishSpot({
-    required this.p,
-    required this.angle,
-    required this.size,
-    this.manual = false,
-  });
-
-  final Offset p;
-
-  /// Heading in radians.
-  final double angle;
-
-  /// 0.55..1.0. Stands in for detector confidence: the sensitivity slider keeps
-  /// or drops spots by this value, which is how a real area/threshold filter
-  /// behaves on small or partly occluded fish.
-  final double size;
-
-  /// True when the operator placed this marker by hand.
-  final bool manual;
-}
-
-/// A generated tray of fingerlings. Deterministic for a given seed so a saved
-/// batch always renders identically.
-@immutable
-class FishField {
-  const FishField({required this.spots, required this.spacing});
-
-  final List<FishSpot> spots;
-
-  /// Mean normalised distance between neighbours. Drives fish and marker sizing
-  /// so a dense tray reads as small fish rather than overlapping blobs.
-  final double spacing;
-
-  /// Drawn marker ring radius, as a multiple of [spacing] in short-side units.
-  /// Hit testing reads this too, so what you tap matches what you see.
-  static const markerRing = 0.5;
-
-  /// Aspect ratio every marker surface is laid out at. Normalised coordinates
-  /// are therefore anisotropic, and hit testing has to correct for it.
-  static const aspect = 4 / 3;
-
-  static const _pad = 0.06;
-
-  factory FishField.generate({required int seed, required int count}) {
-    final rnd = math.Random(seed);
-    const span = 1 - _pad * 2;
-    final spacing = math.sqrt(span * span / math.max(count, 1));
-    final minDist = spacing * 0.58;
-    final spots = <FishSpot>[];
-    var guard = 0;
-    while (spots.length < count && guard < count * 80) {
-      guard++;
-      final p = Offset(
-        _pad + rnd.nextDouble() * span,
-        _pad + rnd.nextDouble() * span,
-      );
-      if (spots.any((s) => (s.p - p).distance < minDist)) continue;
-      spots.add(
-        FishSpot(
-          p: p,
-          angle: rnd.nextDouble() * math.pi * 2,
-          size: 0.55 + rnd.nextDouble() * 0.45,
-        ),
-      );
-    }
-    return FishField(spots: spots, spacing: spacing);
-  }
-}
-
+/// Draws a simulated tray.
+///
+/// Geometry here and in `vision/tray_raster.dart` describe the same fish: this
+/// one for the operator, the other for the detector. A marker found in the
+/// rasterised copy is drawn over this one, so the two have to agree.
 class _FishPainter extends CustomPainter {
   const _FishPainter({required this.field});
 
@@ -96,7 +31,7 @@ class _FishPainter extends CustomPainter {
     );
 
     final base = math.min(size.width, size.height);
-    final len = base * field.spacing * 0.92;
+    final len = base * field.spacing * FishField.bodyLength;
     final body = Paint();
     final eye = Paint()..color = const Color(0xFF0A1412);
 
@@ -143,13 +78,15 @@ class _FishPainter extends CustomPainter {
 
 class _MarkerPainter extends CustomPainter {
   const _MarkerPainter({
-    required this.field,
     required this.markers,
+    required this.ringRadius,
     required this.progress,
   });
 
-  final FishField field;
-  final List<FishSpot> markers;
+  final List<Marker> markers;
+
+  /// In short-side units, measured by the detector from the fish it found.
+  final double ringRadius;
 
   /// 0..1 sweep so markers land in sequence, reading as work being done rather
   /// than decoration.
@@ -158,8 +95,7 @@ class _MarkerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (markers.isEmpty || progress <= 0) return;
-    final base = math.min(size.width, size.height);
-    final r = base * field.spacing * FishField.markerRing;
+    final r = math.min(size.width, size.height) * ringRadius;
     final shown = (markers.length * progress).ceil();
 
     final halo = Paint()
@@ -180,29 +116,37 @@ class _MarkerPainter extends CustomPainter {
       final c = Offset(m.p.dx * size.width, m.p.dy * size.height);
       canvas.drawCircle(c, r, halo);
       canvas.drawCircle(c, r, m.manual ? manual : auto);
-      if (m.manual) canvas.drawCircle(c, 1.6, Paint()..color = const Color(0xFF3BE38F));
+      if (m.manual) {
+        canvas.drawCircle(c, 1.6, Paint()..color = const Color(0xFF3BE38F));
+      }
     }
   }
 
   @override
   bool shouldRepaint(covariant _MarkerPainter old) =>
-      old.markers != markers || old.progress != progress || old.field != field;
+      old.markers != markers ||
+      old.progress != progress ||
+      old.ringRadius != ringRadius;
 }
 
-/// Stand-in for a captured frame. Swapping this for a real camera still later
-/// means replacing the bottom layer only; the marker layer stays as-is.
-class MockTrayImage extends StatelessWidget {
-  const MockTrayImage({
+/// A frame with its markers over the top.
+///
+/// The frame underneath is either a rendered tray or a photograph; everything
+/// above it — rings, taps, zoom — is the same either way.
+class CountFrameView extends StatelessWidget {
+  const CountFrameView({
     super.key,
-    required this.field,
+    required this.frame,
     this.markers = const [],
+    this.ringRadius = 0.02,
     this.markerProgress = 1,
     this.radius = AppRadius.card,
     this.onTapNormalised,
   });
 
-  final FishField field;
-  final List<FishSpot> markers;
+  final CountFrame frame;
+  final List<Marker> markers;
+  final double ringRadius;
   final double markerProgress;
   final double radius;
 
@@ -230,11 +174,21 @@ class MockTrayImage extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CustomPaint(painter: _FishPainter(field: field)),
+                switch (frame) {
+                  SimulatedFrame(:final field) => CustomPaint(
+                    painter: _FishPainter(field: field),
+                  ),
+                  // Fill the box, which matches the photo's own aspect — no
+                  // centre crop, so every fish the detector saw is shown.
+                  PhotoFrame(:final image) => RawImage(
+                    image: image,
+                    fit: BoxFit.fill,
+                  ),
+                },
                 CustomPaint(
                   painter: _MarkerPainter(
-                    field: field,
                     markers: markers,
+                    ringRadius: ringRadius,
                     progress: markerProgress,
                   ),
                 ),
@@ -259,8 +213,8 @@ class TrayThumb extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox.square(
       dimension: size,
-      child: MockTrayImage(
-        field: FishField.generate(seed: seed, count: 26),
+      child: CountFrameView(
+        frame: SimulatedFrame.seeded(seed: seed, fish: 26),
         radius: AppRadius.thumb,
       ),
     );

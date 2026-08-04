@@ -2,9 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/count_batch.dart';
 import '../theme/app_theme.dart';
+import '../vision/count_frame.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/fish_field.dart';
 import '../widgets/species_pills.dart';
@@ -29,17 +31,47 @@ class _CaptureScreenState extends State<CaptureScreen> {
   bool _speciesOpen = false;
 
   /// Stands in for the live preview until the camera plugin is wired up.
-  final FishField _preview = FishField.generate(seed: 20740, count: 268);
+  final SimulatedFrame _preview = SimulatedFrame.seeded(seed: 20740);
 
-  void _capture() {
+  void _review(CountFrame frame, int seed) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ReviewScreen(
-          seed: DateTime.now().millisecondsSinceEpoch % 100000,
+          frame: frame,
+          seed: seed,
           species: _species,
         ),
       ),
     );
+  }
+
+  /// Shutter on a simulated tray. The camera plugin lands later; until then the
+  /// operator still gets a frame the detector has to actually count, which is
+  /// the part that needed proving.
+  void _capture() {
+    _review(
+      SimulatedFrame.seeded(
+        seed: DateTime.now().millisecondsSinceEpoch % 100000,
+      ),
+      DateTime.now().millisecondsSinceEpoch % 100000,
+    );
+  }
+
+  /// Picks a real photo and counts that. The detector does not know or care
+  /// where its pixels came from, so a gallery shot is the first honest test of
+  /// it.
+  Future<void> _pickPhoto() async {
+    final picker = ImagePicker();
+    final photo = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 92,
+    );
+    if (photo == null || !mounted) return;
+    final bytes = await photo.readAsBytes();
+    if (!mounted) return;
+    final frame = await PhotoFrame.decode(bytes);
+    if (!mounted) return;
+    _review(frame, photo.name.hashCode & 0x7fffffff);
   }
 
   @override
@@ -97,7 +129,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: MockTrayImage(field: _preview, radius: 20),
+                        child: CountFrameView(frame: _preview, radius: 20),
                       ),
                       Positioned.fill(
                         child: IgnorePointer(
@@ -154,7 +186,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                         alignment: Alignment.centerRight,
                         child: ViewfinderIconButton(
                           icon: Icons.photo_library_outlined,
-                          onPressed: _capture,
+                          onPressed: _pickPhoto,
                           tooltip: 'Choose a photo',
                         ),
                       ),

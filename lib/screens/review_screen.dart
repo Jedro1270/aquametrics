@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../data/count_editor.dart';
+import '../data/frame_cache.dart';
 import '../data/mock_data.dart';
 import '../models/count_batch.dart';
 import '../theme/app_theme.dart';
 import '../util/format.dart';
+import '../vision/count_frame.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/count_widgets.dart';
 import '../widgets/fish_field.dart';
@@ -15,9 +17,18 @@ import 'tray_viewer_screen.dart';
 /// app: the detector's number is presented as a starting point, and fixing it is
 /// a first-class action rather than buried in a menu.
 class ReviewScreen extends StatefulWidget {
-  const ReviewScreen({super.key, required this.seed, required this.species});
+  const ReviewScreen({
+    super.key,
+    required this.frame,
+    required this.seed,
+    required this.species,
+  });
 
+  final CountFrame frame;
+
+  /// Kept with the saved count so its thumbnail can be redrawn later.
   final int seed;
+
   final Species species;
 
   @override
@@ -26,11 +37,7 @@ class ReviewScreen extends StatefulWidget {
 
 class _ReviewScreenState extends State<ReviewScreen>
     with TickerProviderStateMixin {
-  static const _spotsInFrame = 268;
-
-  late final CountEditor _editor = CountEditor(
-    tray: FishField.generate(seed: widget.seed, count: _spotsInFrame),
-  );
+  late final CountEditor _editor = CountEditor(frame: widget.frame);
   late final AnimationController _reveal = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
@@ -44,22 +51,35 @@ class _ReviewScreenState extends State<ReviewScreen>
   final _noteCtrl = TextEditingController();
 
   late Species _species = widget.species;
-  bool _analyzing = true;
+
+  /// True until the first count comes back. Re-running for a new sensitivity
+  /// updates the rings in place instead of covering the frame again.
+  bool _firstPass = true;
+
+  bool get _busy => _firstPass && _editor.analysing;
 
   @override
   void initState() {
     super.initState();
-    // Stands in for the detector pass so the flow has the right rhythm.
-    Future.delayed(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
+    _editor.addListener(_onCount);
+    _editor.analyse();
+  }
+
+  void _onCount() {
+    if (!mounted) return;
+    if (_editor.analysing) {
+      if (!_scan.isAnimating) _scan.repeat();
+    } else {
       _scan.stop();
-      setState(() => _analyzing = false);
-      _reveal.forward();
-    });
+      _firstPass = false;
+      if (!_reveal.isCompleted) _reveal.forward();
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _editor.removeListener(_onCount);
     _reveal.dispose();
     _scan.dispose();
     _editor.dispose();
@@ -74,7 +94,7 @@ class _ReviewScreenState extends State<ReviewScreen>
   }
 
   void _expand() {
-    if (_analyzing) return;
+    if (_busy) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -90,10 +110,11 @@ class _ReviewScreenState extends State<ReviewScreen>
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final saved = _editor.total;
+    final id = 'b-${DateTime.now().microsecondsSinceEpoch}';
 
     batchStore.add(
       CountBatch(
-        id: 'b-${DateTime.now().microsecondsSinceEpoch}',
+        id: id,
         label: _title,
         species: _species,
         autoCount: _editor.autoCount,
@@ -101,6 +122,14 @@ class _ReviewScreenState extends State<ReviewScreen>
         capturedAt: DateTime.now(),
         seed: widget.seed,
         note: _noteCtrl.text.trim(),
+      ),
+    );
+    frameCache.put(
+      id,
+      SavedFrame(
+        frame: widget.frame,
+        markers: _editor.markers,
+        ringRadius: _editor.ringRadius,
       ),
     );
 
@@ -172,7 +201,7 @@ class _ReviewScreenState extends State<ReviewScreen>
           child: HiVisButton(
             label: 'Save count',
             icon: Icons.check_rounded,
-            onPressed: _analyzing ? null : _save,
+            onPressed: _busy ? null : _save,
           ),
         ),
       ),
@@ -181,21 +210,22 @@ class _ReviewScreenState extends State<ReviewScreen>
 
   Widget _frame() {
     return AspectRatio(
-      aspectRatio: 4 / 3,
+      aspectRatio: widget.frame.aspect,
       child: Stack(
         children: [
           Positioned.fill(
             child: ListenableBuilder(
               listenable: Listenable.merge([_editor, _reveal]),
-              builder: (context, _) => MockTrayImage(
-                field: _editor.tray,
-                markers: _analyzing ? const [] : _editor.markers,
+              builder: (context, _) => CountFrameView(
+                frame: widget.frame,
+                markers: _busy ? const [] : _editor.markers,
+                ringRadius: _editor.ringRadius,
                 markerProgress: _reveal.value,
                 onTapNormalised: _editor.tapAt,
               ),
             ),
           ),
-          if (_analyzing)
+          if (_busy)
             Positioned.fill(
               child: IgnorePointer(
                 child: AnimatedBuilder(
@@ -245,7 +275,7 @@ class _ReviewScreenState extends State<ReviewScreen>
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.bottomLeft,
                   child: AnimatedCount(
-                    value: _analyzing ? 0 : _editor.total,
+                    value: _busy ? 0 : _editor.total,
                     style: text.displayMedium,
                     duration: const Duration(milliseconds: 220),
                   ),
@@ -282,6 +312,51 @@ class _ReviewScreenState extends State<ReviewScreen>
                 value: _editor.removed,
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: _editor.detectorError == null
+                  ? AppColors.tealSoft
+                  : const Color(0xFFFFF1F0),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  _editor.detectorError == null
+                      ? Icons.cloud_done_outlined
+                      : Icons.error_outline_rounded,
+                  size: 17,
+                  color: _editor.detectorError == null
+                      ? AppColors.tealDeep
+                      : const Color(0xFFB42318),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _editor.detectorStatus,
+                        style: text.bodySmall?.copyWith(
+                          color: _editor.detectorError == null
+                              ? AppColors.tealDeep
+                              : const Color(0xFFB42318),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (_editor.detectorError case final error?) ...[
+                        const SizedBox(height: 3),
+                        Text(error, style: text.bodySmall),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           Container(
@@ -351,7 +426,7 @@ class _ReviewScreenState extends State<ReviewScreen>
           const SizedBox(height: 2),
           Slider(
             value: _editor.sensitivity,
-            onChanged: _analyzing ? null : (v) => _editor.sensitivity = v,
+            onChanged: _busy ? null : (v) => _editor.sensitivity = v,
           ),
           Text(
             'Strict skips faint or half-hidden fish. Inclusive catches more but '

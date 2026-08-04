@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../data/count_editor.dart';
+import '../models/marker.dart';
 import '../theme/app_theme.dart';
 import '../util/format.dart';
+import '../vision/count_frame.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/count_widgets.dart';
 import '../widgets/fish_field.dart';
@@ -18,20 +20,23 @@ class TrayViewerScreen extends StatefulWidget {
     super.key,
     required CountEditor this.editor,
     required this.title,
-  }) : tray = null,
-       markers = const [];
+  }) : frame = null,
+       markers = const [],
+       ringRadius = 0.02;
 
   /// Read-only view of a saved count.
   const TrayViewerScreen.readOnly({
     super.key,
-    required FishField this.tray,
+    required CountFrame this.frame,
     required this.markers,
+    required this.ringRadius,
     required this.title,
   }) : editor = null;
 
   final CountEditor? editor;
-  final FishField? tray;
-  final List<FishSpot> markers;
+  final CountFrame? frame;
+  final List<Marker> markers;
+  final double ringRadius;
   final String title;
 
   @override
@@ -50,8 +55,9 @@ class _TrayViewerScreenState extends State<TrayViewerScreen> {
 
   Listenable get _refresh => widget.editor ?? _idle;
   bool get _editable => widget.editor != null;
-  FishField get _tray => widget.editor?.tray ?? widget.tray!;
-  List<FishSpot> get _markers => widget.editor?.markers ?? widget.markers;
+  CountFrame get _frame => widget.editor?.frame ?? widget.frame!;
+  List<Marker> get _markers => widget.editor?.markers ?? widget.markers;
+  double get _ring => widget.editor?.ringRadius ?? widget.ringRadius;
 
   @override
   void initState() {
@@ -173,10 +179,14 @@ class _TrayViewerScreenState extends State<TrayViewerScreen> {
                         maxScale: 8,
                         child: Center(
                           child: AspectRatio(
-                            aspectRatio: 4 / 3,
-                            child: MockTrayImage(
-                              field: _tray,
+                            aspectRatio: _frame.aspect,
+                            child: CountFrameView(
+                              frame: _frame,
                               markers: _markers,
+                              ringRadius: CountEditor.markerRingRadiusForZoom(
+                                _ring,
+                                scale: _scale,
+                              ),
                               radius: 0,
                               // Hand the editor the live zoom so the hit radius
                               // tightens as the operator magnifies.
