@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../data/batch_store.dart';
 import '../models/count_batch.dart';
 import '../theme/app_theme.dart';
 import '../util/format.dart';
@@ -9,7 +9,9 @@ import '../widgets/count_widgets.dart';
 import 'batch_detail_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+  const HistoryScreen({super.key, required this.store});
+
+  final BatchStore store;
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -24,10 +26,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final text = Theme.of(context).textTheme;
 
     return ListenableBuilder(
-      listenable: batchStore,
+      listenable: widget.store,
       builder: (context, _) {
         final days = [
-          for (final (day, items) in batchStore.byDay)
+          for (final (day, items) in widget.store.byDay)
             (
               day,
               _filter == null
@@ -79,10 +81,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: BatchTile(
+                      store: widget.store,
                       batch: batch,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => BatchDetailScreen(batch: batch),
+                          builder: (_) => BatchDetailScreen(
+                            store: widget.store,
+                            batch: batch,
+                          ),
                         ),
                       ),
                     ),

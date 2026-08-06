@@ -1,22 +1,29 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../data/batch_store.dart';
 import '../models/count_batch.dart';
 import '../theme/app_theme.dart';
 import '../widgets/count_widgets.dart';
 import '../widgets/species_pills.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, required this.store});
+
+  final BatchStore store;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  Species _defaultSpecies = Species.tilapia;
-  double _defaultSensitivity = 0.72;
-  bool _keepPhotos = true;
-  bool _confirmBeforeSave = true;
+  late Species _defaultSpecies = widget.store.settings.defaultSpecies;
+  late double _defaultSensitivity = widget.store.settings.defaultSensitivity;
+  late bool _keepPhotos = widget.store.settings.keepPhotos;
+  late bool _confirmBeforeSave = widget.store.settings.confirmBeforeSave;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +42,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               caption: 'Pre-selected when you open the camera.',
               child: SpeciesPills(
                 selected: _defaultSpecies,
-                onChanged: (s) => setState(() => _defaultSpecies = s),
+                onChanged: (species) {
+                  setState(() => _defaultSpecies = species);
+                  _saveSettings();
+                },
               ),
             ),
             const Divider(height: 1, color: AppColors.line),
@@ -44,7 +54,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               caption: 'Where the slider starts on a new count.',
               child: Slider(
                 value: _defaultSensitivity,
-                onChanged: (v) => setState(() => _defaultSensitivity = v),
+                onChanged: (value) =>
+                    setState(() => _defaultSensitivity = value),
+                onChangeEnd: (_) => _saveSettings(),
               ),
             ),
             const Divider(height: 1, color: AppColors.line),
@@ -52,7 +64,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               label: 'Check the count before saving',
               caption: 'Opens the review step every time. Recommended.',
               value: _confirmBeforeSave,
-              onChanged: (v) => setState(() => _confirmBeforeSave = v),
+              onChanged: (value) {
+                setState(() => _confirmBeforeSave = value);
+                _saveSettings();
+              },
             ),
           ],
         ),
@@ -64,14 +79,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               label: 'Keep captured photos',
               caption: 'Lets you re-check a count later. Uses more space.',
               value: _keepPhotos,
-              onChanged: (v) => setState(() => _keepPhotos = v),
+              onChanged: (value) {
+                setState(() => _keepPhotos = value);
+                _saveSettings();
+              },
             ),
             const Divider(height: 1, color: AppColors.line),
             _TapRow(
               label: 'Export all counts',
               caption: 'CSV you can open in a spreadsheet.',
               icon: Icons.ios_share_rounded,
-              onTap: () => _soon(context),
+              onTap: _export,
             ),
           ],
         ),
@@ -104,7 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 22),
         Center(
           child: Text(
-            'AquaMetrics 0.1.0  ·  UI preview',
+            'AquaMetrics 0.1.0  ·  Local database',
             style: text.bodySmall?.copyWith(color: AppColors.inkFaint),
           ),
         ),
@@ -112,10 +130,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _soon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Not wired up yet')),
+  Future<void> _saveSettings() async {
+    await widget.store.updateSettings(
+      AppSettings(
+        defaultSpecies: _defaultSpecies,
+        defaultSensitivity: _defaultSensitivity,
+        keepPhotos: _keepPhotos,
+        confirmBeforeSave: _confirmBeforeSave,
+      ),
     );
+  }
+
+  Future<void> _export() async {
+    if (widget.store.batches.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('There are no counts to export yet.')),
+      );
+      return;
+    }
+    try {
+      final bytes = Uint8List.fromList(utf8.encode(widget.store.exportCsv()));
+      await SharePlus.instance.share(
+        ShareParams(
+          subject: 'AquaMetrics count history',
+          files: [XFile.fromData(bytes, mimeType: 'text/csv')],
+          fileNameOverrides: ['aquametrics-counts.csv'],
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not export count history.')),
+      );
+    }
   }
 }
 

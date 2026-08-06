@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../data/batch_store.dart';
 import '../data/frame_cache.dart';
-import '../data/mock_data.dart';
 import '../models/count_batch.dart';
 import '../models/fish_field.dart';
 import '../models/marker.dart';
@@ -13,17 +13,32 @@ import '../widgets/count_widgets.dart';
 import '../widgets/fish_field.dart';
 import 'tray_viewer_screen.dart';
 
-class BatchDetailScreen extends StatelessWidget {
-  const BatchDetailScreen({super.key, required this.batch});
+class BatchDetailScreen extends StatefulWidget {
+  const BatchDetailScreen({
+    super.key,
+    required this.store,
+    required this.batch,
+  });
 
+  final BatchStore store;
   final CountBatch batch;
 
-  /// What to show for this count: the photograph it was made from if it is still
-  /// in the session cache, otherwise a simulated tray of the same size. The
-  /// latter is a stand-in for persistence, which lands next.
-  SavedFrame _frame() {
-    final cached = frameCache[batch.id];
-    if (cached != null) return cached;
+  @override
+  State<BatchDetailScreen> createState() => _BatchDetailScreenState();
+}
+
+class _BatchDetailScreenState extends State<BatchDetailScreen> {
+  late final Future<SavedFrame> _savedFrame = _frame();
+
+  CountBatch get batch => widget.batch;
+
+  /// What to show for this count: the persisted photograph it was made from, or
+  /// a simulated tray for legacy/test data that has no image.
+  Future<SavedFrame> _frame() async {
+    try {
+      final saved = await widget.store.loadFrame(batch.id);
+      if (saved != null) return saved;
+    } catch (_) {}
     final field = FishField.generate(seed: batch.seed, count: batch.total);
     return SavedFrame(
       frame: SimulatedFrame(field),
@@ -72,15 +87,27 @@ class BatchDetailScreen extends StatelessWidget {
       ),
     );
     if (ok != true || !context.mounted) return;
-    batchStore.remove(batch.id);
-    Navigator.of(context).pop();
+    await widget.store.remove(batch.id);
+    if (context.mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final frame = _frame();
+    return FutureBuilder<SavedFrame>(
+      future: _savedFrame,
+      builder: (context, snapshot) {
+        final frame = snapshot.data;
+        if (frame != null) return _content(context, frame);
+        return const Scaffold(
+          backgroundColor: AppColors.shell,
+          body: Center(child: CircularProgressIndicator()),
+        );
+      },
+    );
+  }
 
+  Widget _content(BuildContext context, SavedFrame frame) {
+    final text = Theme.of(context).textTheme;
     return Scaffold(
       backgroundColor: AppColors.shell,
       appBar: AppBar(
@@ -194,7 +221,8 @@ class BatchDetailScreen extends StatelessWidget {
                 const Divider(height: 1, color: AppColors.line),
                 _MetaRow(
                   label: 'Captured',
-                  value: '${relativeDay(batch.capturedAt)}, '
+                  value:
+                      '${relativeDay(batch.capturedAt)}, '
                       '${clockTime(batch.capturedAt)}',
                 ),
               ],

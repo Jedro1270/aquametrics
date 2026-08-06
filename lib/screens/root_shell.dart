@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/batch_store.dart';
 import '../theme/app_theme.dart';
 import 'capture_screen.dart';
 import 'history_screen.dart';
@@ -7,8 +8,9 @@ import 'home_screen.dart';
 import 'settings_screen.dart';
 
 class RootShell extends StatefulWidget {
-  const RootShell({super.key, this.pickImage});
+  const RootShell({super.key, required this.store, this.pickImage});
 
+  final BatchStore store;
   final ImagePickerCallback? pickImage;
 
   @override
@@ -28,11 +30,12 @@ class _RootShellState extends State<RootShell> {
           index: _index,
           children: [
             HomeScreen(
+              store: widget.store,
               onSeeAll: () => setState(() => _index = 1),
               pickImage: widget.pickImage,
             ),
-            const HistoryScreen(),
-            const SettingsScreen(),
+            HistoryScreen(store: widget.store),
+            SettingsScreen(store: widget.store),
           ],
         ),
       ),

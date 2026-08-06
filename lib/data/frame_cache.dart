@@ -14,13 +14,12 @@ class SavedFrame {
   final double ringRadius;
 }
 
-/// Frames from counts saved during this session, held in memory.
+/// Recently decoded frames held in memory.
 ///
 /// Reopening a count should show the photograph it was made from with the rings
-/// where they were left, and that needs the frame kept somewhere. This is the
-/// stand-in until persistence lands and writes them to disk: counts saved this
-/// session come back properly, and anything older — which today means the sample
-/// history — falls back to a simulated render of its seed.
+/// where they were left. SQLite owns the durable encoded image and marker data;
+/// this cache avoids decoding the same photograph every time a detail screen is
+/// opened during one session.
 ///
 /// Deliberately small. A decoded photograph is a few megabytes, and holding
 /// every one of a long day's counts would be worse than forgetting them.
@@ -40,6 +39,9 @@ class FrameCache {
       _frames.remove(_order.removeAt(0));
     }
   }
-}
 
-final frameCache = FrameCache();
+  void remove(String batchId) {
+    _frames.remove(batchId);
+    _order.remove(batchId);
+  }
+}

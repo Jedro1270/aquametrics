@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../data/batch_store.dart';
 import '../models/count_batch.dart';
 import '../theme/app_theme.dart';
 import '../vision/count_frame.dart';
@@ -31,11 +32,13 @@ PhotoFrameDecoder? debugPhotoFrameDecoder;
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({
     super.key,
-    this.species = Species.tilapia,
+    required this.store,
+    this.species,
     this.pickImage,
   });
 
-  final Species species;
+  final BatchStore store;
+  final Species? species;
   final ImagePickerCallback? pickImage;
 
   @override
@@ -44,7 +47,8 @@ class CaptureScreen extends StatefulWidget {
 
 class _CaptureScreenState extends State<CaptureScreen>
     with WidgetsBindingObserver {
-  late Species _species = widget.species;
+  late Species _species =
+      widget.species ?? widget.store.settings.defaultSpecies;
   bool _torch = false;
   bool _grid = true;
   bool _speciesOpen = false;
@@ -127,8 +131,14 @@ class _CaptureScreenState extends State<CaptureScreen>
   void _review(CountFrame frame, int seed) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            ReviewScreen(frame: frame, seed: seed, species: _species),
+        builder: (_) => ReviewScreen(
+          store: widget.store,
+          frame: frame,
+          seed: seed,
+          species: _species,
+          sensitivity: widget.store.settings.defaultSensitivity,
+          confirmBeforeSave: widget.store.settings.confirmBeforeSave,
+        ),
       ),
     );
   }
