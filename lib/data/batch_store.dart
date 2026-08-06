@@ -226,25 +226,6 @@ class BatchStore extends ChangeNotifier {
 
   int get allTimeTotal => _sum(_batches);
 
-  String exportCsv() {
-    final rows = <String>[
-      'id,label,species,automatic_count,manual_adjustment,final_count,'
-          'captured_at,note',
-      for (final batch in batches)
-        [
-          batch.id,
-          batch.label,
-          batch.species.label,
-          batch.autoCount,
-          batch.manualDelta,
-          batch.total,
-          batch.capturedAt.toIso8601String(),
-          batch.note,
-        ].map((value) => _csv(value.toString())).join(','),
-    ];
-    return '${rows.join('\n')}\n';
-  }
-
   /// Batches grouped into day buckets, newest day first.
   List<(DateTime, List<CountBatch>)> get byDay {
     final buckets = <DateTime, List<CountBatch>>{};
@@ -287,8 +268,6 @@ class BatchStore extends ChangeNotifier {
     defaultSpecies: Species.values.byName(row['default_species'] as String),
     defaultSensitivity: (row['default_sensitivity'] as num).toDouble(),
   );
-
-  static String _csv(String value) => '"${value.replaceAll('"', '""')}"';
 
   static Map<String, Object?> _batchToRow(CountBatch batch) => {
     'id': batch.id,

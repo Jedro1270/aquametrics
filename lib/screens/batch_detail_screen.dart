@@ -150,10 +150,7 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              SpeciesTag(
-                label: batch.species.label,
-                tint: batch.species.tint,
-              ),
+              SpeciesTag(label: batch.species.label, tint: batch.species.tint),
               Flexible(
                 child: Text(
                   '  ·  ${relativeDay(batch.capturedAt)}, '
@@ -251,14 +248,6 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
             ),
           ],
           const SizedBox(height: 20),
-          QuietButton(
-            label: 'Export as CSV',
-            icon: Icons.ios_share_rounded,
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Export lands with local storage')),
-            ),
-          ),
-          const SizedBox(height: 10),
           QuietButton(
             label: 'Delete count',
             icon: Icons.delete_outline_rounded,

@@ -1,8 +1,4 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../data/batch_store.dart';
 import '../models/count_batch.dart';
@@ -60,18 +56,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        _Group(
-          title: 'Storage',
-          children: [
-            _TapRow(
-              label: 'Export all counts',
-              caption: 'CSV you can open in a spreadsheet.',
-              icon: Icons.ios_share_rounded,
-              onTap: _export,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -114,30 +98,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         defaultSensitivity: _defaultSensitivity,
       ),
     );
-  }
-
-  Future<void> _export() async {
-    if (widget.store.batches.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('There are no counts to export yet.')),
-      );
-      return;
-    }
-    try {
-      final bytes = Uint8List.fromList(utf8.encode(widget.store.exportCsv()));
-      await SharePlus.instance.share(
-        ShareParams(
-          subject: 'AquaMetrics count history',
-          files: [XFile.fromData(bytes, mimeType: 'text/csv')],
-          fileNameOverrides: ['aquametrics-counts.csv'],
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not export count history.')),
-      );
-    }
   }
 }
 
@@ -194,46 +154,6 @@ class _Block extends StatelessWidget {
           const SizedBox(height: 12),
           child,
         ],
-      ),
-    );
-  }
-}
-
-class _TapRow extends StatelessWidget {
-  const _TapRow({
-    required this.label,
-    required this.caption,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final String caption;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: text.titleMedium),
-                  const SizedBox(height: 3),
-                  Text(caption, style: text.bodySmall),
-                ],
-              ),
-            ),
-            Icon(icon, size: 19, color: AppColors.inkSoft),
-          ],
-        ),
       ),
     );
   }

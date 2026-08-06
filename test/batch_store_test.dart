@@ -151,26 +151,6 @@ void main() {
     expect(reopened.settings.defaultSensitivity, 0.31);
   });
 
-  test('exports escaped count history as CSV', () {
-    final store = BatchStore.memory([
-      CountBatch(
-        id: 'csv-1',
-        label: 'Pond, "North"',
-        species: Species.tilapia,
-        autoCount: 12,
-        manualDelta: -1,
-        capturedAt: DateTime.utc(2026, 8, 6, 10, 15),
-        seed: 1,
-        note: 'Clear water',
-      ),
-    ]);
-
-    final csv = store.exportCsv();
-    expect(csv, contains('"Pond, ""North"""'));
-    expect(csv, contains('"12","-1","11"'));
-    expect(csv, contains('"2026-08-06T10:15:00.000Z"'));
-  });
-
   testWidgets('batch tile renders its saved photograph', (tester) async {
     final store = BatchStore.memory();
     final batch = CountBatch(
