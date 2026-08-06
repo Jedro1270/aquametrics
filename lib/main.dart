@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'data/batch_store.dart';
 import 'screens/capture_screen.dart';
 import 'screens/root_shell.dart';
 import 'theme/app_theme.dart';
 import 'vision/roboflow_detector.dart';
 import 'vision/yolo_detector.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -35,12 +36,13 @@ void main() {
           // Model load failed — the app still runs, detection returns empty.
         });
   }
-  runApp(const AquaMetricsApp());
+  runApp(AquaMetricsApp(store: await BatchStore.open()));
 }
 
 class AquaMetricsApp extends StatelessWidget {
-  const AquaMetricsApp({super.key, this.pickImage});
+  const AquaMetricsApp({super.key, required this.store, this.pickImage});
 
+  final BatchStore store;
   final ImagePickerCallback? pickImage;
 
   @override
@@ -49,7 +51,7 @@ class AquaMetricsApp extends StatelessWidget {
       title: 'AquaMetrics',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: RootShell(pickImage: pickImage),
+      home: RootShell(store: store, pickImage: pickImage),
     );
   }
 }

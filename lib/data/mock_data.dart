@@ -3,9 +3,11 @@ import 'batch_store.dart';
 
 DateTime _at(int daysAgo, int hour, int minute) {
   final now = DateTime.now();
-  final day = DateTime(now.year, now.month, now.day).subtract(
-    Duration(days: daysAgo),
-  );
+  final day = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  ).subtract(Duration(days: daysAgo));
   return DateTime(day.year, day.month, day.day, hour, minute);
 }
 
@@ -80,4 +82,4 @@ final _mockBatches = <CountBatch>[
   ),
 ];
 
-final batchStore = BatchStore(_mockBatches);
+BatchStore createTestBatchStore() => BatchStore.memory(_mockBatches);

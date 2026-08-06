@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../data/batch_store.dart';
 import '../data/count_editor.dart';
 import '../data/frame_cache.dart';
-import '../data/mock_data.dart';
 import '../models/count_batch.dart';
 import '../theme/app_theme.dart';
 import '../util/format.dart';
@@ -19,17 +19,21 @@ import 'tray_viewer_screen.dart';
 class ReviewScreen extends StatefulWidget {
   const ReviewScreen({
     super.key,
+    required this.store,
     required this.frame,
     required this.seed,
     required this.species,
+    required this.sensitivity,
   });
 
+  final BatchStore store;
   final CountFrame frame;
 
   /// Kept with the saved count so its thumbnail can be redrawn later.
   final int seed;
 
   final Species species;
+  final double sensitivity;
 
   @override
   State<ReviewScreen> createState() => _ReviewScreenState();
@@ -37,7 +41,10 @@ class ReviewScreen extends StatefulWidget {
 
 class _ReviewScreenState extends State<ReviewScreen>
     with TickerProviderStateMixin {
-  late final CountEditor _editor = CountEditor(frame: widget.frame);
+  late final CountEditor _editor = CountEditor(
+    frame: widget.frame,
+    sensitivity: widget.sensitivity,
+  );
   late final AnimationController _reveal = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
@@ -47,7 +54,7 @@ class _ReviewScreenState extends State<ReviewScreen>
     duration: const Duration(milliseconds: 850),
   )..repeat();
 
-  final _labelCtrl = TextEditingController(text: 'Pond 3 transfer');
+  final _labelCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
 
   late Species _species = widget.species;
@@ -55,6 +62,7 @@ class _ReviewScreenState extends State<ReviewScreen>
   /// True until the first count comes back. Re-running for a new sensitivity
   /// updates the rings in place instead of covering the frame again.
   bool _firstPass = true;
+  bool _saving = false;
 
   bool get _busy => _firstPass && _editor.analysing;
 
@@ -98,45 +106,49 @@ class _ReviewScreenState extends State<ReviewScreen>
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => TrayViewerScreen.editing(
-          editor: _editor,
-          title: _title,
-        ),
+        builder: (_) =>
+            TrayViewerScreen.editing(editor: _editor, title: _title),
       ),
     );
   }
 
-  void _save() {
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
     final saved = _editor.total;
-    final id = 'b-${DateTime.now().microsecondsSinceEpoch}';
+    final capturedAt = DateTime.now();
+    final id = 'b-${capturedAt.microsecondsSinceEpoch}';
 
-    batchStore.add(
-      CountBatch(
-        id: id,
-        label: _title,
-        species: _species,
-        autoCount: _editor.autoCount,
-        manualDelta: _editor.manualDelta,
-        capturedAt: DateTime.now(),
-        seed: widget.seed,
-        note: _noteCtrl.text.trim(),
-      ),
-    );
-    frameCache.put(
-      id,
-      SavedFrame(
-        frame: widget.frame,
-        markers: _editor.markers,
-        ringRadius: _editor.ringRadius,
-      ),
-    );
-
-    navigator.popUntil((route) => route.isFirst);
-    messenger.showSnackBar(
-      SnackBar(content: Text('Saved  ·  ${thousands(saved)} fingerlings')),
-    );
+    try {
+      await widget.store.add(
+        CountBatch(
+          id: id,
+          label: _title,
+          species: _species,
+          autoCount: _editor.autoCount,
+          manualDelta: _editor.manualDelta,
+          capturedAt: capturedAt,
+          seed: widget.seed,
+          note: _noteCtrl.text.trim(),
+        ),
+        SavedFrame(
+          frame: widget.frame,
+          markers: _editor.markers,
+          ringRadius: _editor.ringRadius,
+        ),
+      );
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved  ·  ${thousands(saved)} fingerlings')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save this count. Try again.')),
+      );
+    }
   }
 
   @override
@@ -199,9 +211,9 @@ class _ReviewScreenState extends State<ReviewScreen>
         child: SafeArea(
           top: false,
           child: HiVisButton(
-            label: 'Save count',
+            label: _saving ? 'Saving…' : 'Save count',
             icon: Icons.check_rounded,
-            onPressed: _busy ? null : _save,
+            onPressed: _busy || _saving ? null : _save,
           ),
         ),
       ),
@@ -405,10 +417,7 @@ class _ReviewScreenState extends State<ReviewScreen>
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 9,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.tealSoft,
                   borderRadius: BorderRadius.circular(7),

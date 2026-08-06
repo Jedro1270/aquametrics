@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../data/batch_store.dart';
+import '../data/frame_cache.dart';
 import '../models/count_batch.dart';
 import '../theme/app_theme.dart';
 import '../util/format.dart';
@@ -11,11 +13,13 @@ import 'fish_field.dart';
 class BatchTile extends StatelessWidget {
   const BatchTile({
     super.key,
+    required this.store,
     required this.batch,
     required this.onTap,
     this.showTime = true,
   });
 
+  final BatchStore store;
   final CountBatch batch;
   final VoidCallback onTap;
   final bool showTime;
@@ -37,7 +41,7 @@ class BatchTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              TrayThumb(seed: batch.seed),
+              _SavedThumbnail(store: store, batch: batch),
               const SizedBox(width: 13),
               Expanded(
                 child: Column(
@@ -100,6 +104,48 @@ class BatchTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SavedThumbnail extends StatefulWidget {
+  const _SavedThumbnail({required this.store, required this.batch});
+
+  final BatchStore store;
+  final CountBatch batch;
+
+  @override
+  State<_SavedThumbnail> createState() => _SavedThumbnailState();
+}
+
+class _SavedThumbnailState extends State<_SavedThumbnail> {
+  late Future<SavedFrame?> _frame = widget.store.loadFrame(widget.batch.id);
+
+  @override
+  void didUpdateWidget(_SavedThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.store != widget.store ||
+        oldWidget.batch.id != widget.batch.id) {
+      _frame = widget.store.loadFrame(widget.batch.id);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<SavedFrame?>(
+      future: _frame,
+      builder: (context, snapshot) {
+        final saved = snapshot.data;
+        if (saved == null) return TrayThumb(seed: widget.batch.seed);
+        return SizedBox.square(
+          dimension: 54,
+          child: CountFrameView(
+            key: ValueKey('saved-thumbnail-${widget.batch.id}'),
+            frame: saved.frame,
+            radius: AppRadius.thumb,
+          ),
+        );
+      },
     );
   }
 }

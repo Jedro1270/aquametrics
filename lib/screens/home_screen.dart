@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../data/batch_store.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/batch_tile.dart';
@@ -9,7 +9,14 @@ import 'batch_detail_screen.dart';
 import 'capture_screen.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.onSeeAll, this.pickImage});
+  const HomeScreen({
+    super.key,
+    required this.store,
+    required this.onSeeAll,
+    this.pickImage,
+  });
+
+  final BatchStore store;
 
   /// Switches the shell to the History tab.
   final VoidCallback onSeeAll;
@@ -17,7 +24,9 @@ class HomeScreen extends StatelessWidget {
 
   void _startCount(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => CaptureScreen(pickImage: pickImage)),
+      MaterialPageRoute(
+        builder: (_) => CaptureScreen(store: store, pickImage: pickImage),
+      ),
     );
   }
 
@@ -26,18 +35,18 @@ class HomeScreen extends StatelessWidget {
     return Stack(
       children: [
         ListenableBuilder(
-          listenable: batchStore,
+          listenable: store,
           builder: (context, _) {
-            final recent = batchStore.batches.take(4).toList();
+            final recent = store.batches.take(4).toList();
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 116),
               children: [
                 const _Masthead(),
                 const SizedBox(height: 18),
                 HeroCountCard(
-                  total: batchStore.todayTotal,
-                  sessions: batchStore.todayCounts,
-                  lastAt: batchStore.lastCapture,
+                  total: store.todayTotal,
+                  sessions: store.todayCounts,
+                  lastAt: store.lastCapture,
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -45,7 +54,7 @@ class HomeScreen extends StatelessWidget {
                     Expanded(
                       child: StatTile(
                         label: 'Last 7 days',
-                        value: batchStore.weekTotal,
+                        value: store.weekTotal,
                         footnote: 'across all species',
                       ),
                     ),
@@ -53,8 +62,8 @@ class HomeScreen extends StatelessWidget {
                     Expanded(
                       child: StatTile(
                         label: 'All time',
-                        value: batchStore.allTimeTotal,
-                        footnote: '${batchStore.batches.length} counts',
+                        value: store.allTimeTotal,
+                        footnote: '${store.batches.length} counts',
                       ),
                     ),
                   ],
@@ -79,10 +88,12 @@ class HomeScreen extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: BatchTile(
+                        store: store,
                         batch: batch,
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => BatchDetailScreen(batch: batch),
+                            builder: (_) =>
+                                BatchDetailScreen(store: store, batch: batch),
                           ),
                         ),
                       ),

@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
 
+import '../data/batch_store.dart';
 import '../models/count_batch.dart';
 import '../theme/app_theme.dart';
 import '../widgets/count_widgets.dart';
 import '../widgets/species_pills.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, required this.store});
+
+  final BatchStore store;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  Species _defaultSpecies = Species.tilapia;
-  double _defaultSensitivity = 0.72;
-  bool _keepPhotos = true;
-  bool _confirmBeforeSave = true;
+  late Species _defaultSpecies = widget.store.settings.defaultSpecies;
+  late double _defaultSensitivity = widget.store.settings.defaultSensitivity;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +36,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               caption: 'Pre-selected when you open the camera.',
               child: SpeciesPills(
                 selected: _defaultSpecies,
-                onChanged: (s) => setState(() => _defaultSpecies = s),
+                onChanged: (species) {
+                  setState(() => _defaultSpecies = species);
+                  _saveSettings();
+                },
               ),
             ),
             const Divider(height: 1, color: AppColors.line),
@@ -44,34 +48,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               caption: 'Where the slider starts on a new count.',
               child: Slider(
                 value: _defaultSensitivity,
-                onChanged: (v) => setState(() => _defaultSensitivity = v),
+                onChanged: (value) =>
+                    setState(() => _defaultSensitivity = value),
+                onChangeEnd: (_) => _saveSettings(),
               ),
-            ),
-            const Divider(height: 1, color: AppColors.line),
-            _SwitchRow(
-              label: 'Check the count before saving',
-              caption: 'Opens the review step every time. Recommended.',
-              value: _confirmBeforeSave,
-              onChanged: (v) => setState(() => _confirmBeforeSave = v),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _Group(
-          title: 'Storage',
-          children: [
-            _SwitchRow(
-              label: 'Keep captured photos',
-              caption: 'Lets you re-check a count later. Uses more space.',
-              value: _keepPhotos,
-              onChanged: (v) => setState(() => _keepPhotos = v),
-            ),
-            const Divider(height: 1, color: AppColors.line),
-            _TapRow(
-              label: 'Export all counts',
-              caption: 'CSV you can open in a spreadsheet.',
-              icon: Icons.ios_share_rounded,
-              onTap: () => _soon(context),
             ),
           ],
         ),
@@ -93,8 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Counts stay on this phone. No account, no upload, works '
-                  'with no signal.',
+                  'Counts stay on this phone. No account, no upload.',
                   style: text.bodyMedium?.copyWith(color: AppColors.inkSoft),
                 ),
               ),
@@ -104,7 +83,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 22),
         Center(
           child: Text(
-            'AquaMetrics 0.1.0  ·  UI preview',
+            'AquaMetrics 0.1.0  ·  Local database',
             style: text.bodySmall?.copyWith(color: AppColors.inkFaint),
           ),
         ),
@@ -112,9 +91,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _soon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Not wired up yet')),
+  Future<void> _saveSettings() async {
+    await widget.store.updateSettings(
+      AppSettings(
+        defaultSpecies: _defaultSpecies,
+        defaultSensitivity: _defaultSensitivity,
+      ),
     );
   }
 }
@@ -172,88 +154,6 @@ class _Block extends StatelessWidget {
           const SizedBox(height: 12),
           child,
         ],
-      ),
-    );
-  }
-}
-
-class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({
-    required this.label,
-    required this.caption,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final String caption;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: text.titleMedium),
-                const SizedBox(height: 3),
-                Text(caption, style: text.bodySmall),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeTrackColor: AppColors.teal,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TapRow extends StatelessWidget {
-  const _TapRow({
-    required this.label,
-    required this.caption,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final String caption;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: text.titleMedium),
-                  const SizedBox(height: 3),
-                  Text(caption, style: text.bodySmall),
-                ],
-              ),
-            ),
-            Icon(icon, size: 19, color: AppColors.inkSoft),
-          ],
-        ),
       ),
     );
   }

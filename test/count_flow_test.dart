@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 
+import 'package:aquametrics/data/batch_store.dart';
 import 'package:aquametrics/data/count_editor.dart';
+import 'package:aquametrics/data/mock_data.dart';
 import 'package:aquametrics/main.dart';
+import 'package:aquametrics/models/count_batch.dart';
 import 'package:aquametrics/screens/capture_screen.dart';
 import 'package:aquametrics/vision/count_frame.dart';
 import 'package:aquametrics/vision/fish_detector.dart';
@@ -13,6 +16,8 @@ import 'package:image_picker/image_picker.dart';
 /// failed assertion along the way fails the test, which is the cheapest way to
 /// check the screens on a real phone geometry without a device attached.
 void main() {
+  late BatchStore store;
+
   /// The default 800x600 test surface is not a phone, and the review screen is
   /// laid out for one.
   void usePhoneSurface(WidgetTester tester) {
@@ -44,6 +49,7 @@ void main() {
   }
 
   setUp(() {
+    store = createTestBatchStore();
     runDetectorInline();
     debugPhotoFrameDecoder = (_) async => SimulatedFrame.seeded(seed: 20740);
   });
@@ -63,12 +69,29 @@ void main() {
 
   testWidgets('home shows today\'s total and recent counts', (tester) async {
     usePhoneSurface(tester);
-    await tester.pumpWidget(AquaMetricsApp(pickImage: pickTestImage));
+    await tester.pumpWidget(
+      AquaMetricsApp(store: store, pickImage: pickTestImage),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('AquaMetrics'), findsOneWidget);
     expect(find.text('Count fingerlings'), findsOneWidget);
-    expect(find.text('Pond 3 transfer'), findsWidgets);
+  });
+
+  testWidgets('settings update counting defaults', (tester) async {
+    usePhoneSurface(tester);
+    await tester.pumpWidget(
+      AquaMetricsApp(store: store, pickImage: pickTestImage),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hito'));
+    await tester.pumpAndSettle();
+
+    expect(store.settings.defaultSpecies, Species.hito);
+    expect(find.byType(Switch), findsNothing);
   });
 
   testWidgets('shutter opens the device camera', (tester) async {
@@ -79,6 +102,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CaptureScreen(
+          store: BatchStore.memory(),
           pickImage: ({required source, required imageQuality}) async {
             pickedSource = source;
             pickedImageQuality = imageQuality;
@@ -99,7 +123,9 @@ void main() {
 
   testWidgets('capture leads to a reviewable count', (tester) async {
     usePhoneSurface(tester);
-    await tester.pumpWidget(AquaMetricsApp(pickImage: pickTestImage));
+    await tester.pumpWidget(
+      AquaMetricsApp(store: store, pickImage: pickTestImage),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Count fingerlings'));
@@ -121,7 +147,9 @@ void main() {
     tester,
   ) async {
     usePhoneSurface(tester);
-    await tester.pumpWidget(AquaMetricsApp(pickImage: pickTestImage));
+    await tester.pumpWidget(
+      AquaMetricsApp(store: store, pickImage: pickTestImage),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Count fingerlings'));
@@ -164,7 +192,9 @@ void main() {
     tester,
   ) async {
     usePhoneSurface(tester);
-    await tester.pumpWidget(AquaMetricsApp(pickImage: pickTestImage));
+    await tester.pumpWidget(
+      AquaMetricsApp(store: store, pickImage: pickTestImage),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Count fingerlings'));
@@ -183,7 +213,9 @@ void main() {
 
   testWidgets('a saved count opens read-only and expands', (tester) async {
     usePhoneSurface(tester);
-    await tester.pumpWidget(AquaMetricsApp(pickImage: pickTestImage));
+    await tester.pumpWidget(
+      AquaMetricsApp(store: store, pickImage: pickTestImage),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Buyer sample — Delgado'));
