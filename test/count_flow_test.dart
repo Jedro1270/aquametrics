@@ -76,10 +76,9 @@ void main() {
 
     expect(find.text('AquaMetrics'), findsOneWidget);
     expect(find.text('Count fingerlings'), findsOneWidget);
-    expect(find.text('Pond 3 transfer'), findsWidgets);
   });
 
-  testWidgets('settings update counting and photo defaults', (tester) async {
+  testWidgets('settings update counting defaults', (tester) async {
     usePhoneSurface(tester);
     await tester.pumpWidget(
       AquaMetricsApp(store: store, pickImage: pickTestImage),
@@ -90,11 +89,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Hito'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(Switch).first);
-    await tester.pumpAndSettle();
 
     expect(store.settings.defaultSpecies, Species.hito);
-    expect(store.settings.confirmBeforeSave, isFalse);
+    expect(find.byType(Switch), findsNothing);
   });
 
   testWidgets('shutter opens the device camera', (tester) async {
@@ -144,29 +141,6 @@ void main() {
     await settleDetector(tester);
     expect(find.text('Save count'), findsOneWidget);
     expect(find.text('Detection sensitivity'), findsOneWidget);
-  });
-
-  testWidgets('disabled review confirmation auto-saves a detected count', (
-    tester,
-  ) async {
-    usePhoneSurface(tester);
-    store = BatchStore.memory(
-      const [],
-      const AppSettings(confirmBeforeSave: false),
-    );
-    await tester.pumpWidget(
-      AquaMetricsApp(store: store, pickImage: pickTestImage),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Count fingerlings'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Count fingerlings'), findsOneWidget);
-    expect(store.batches.first.label, 'Pond 3 transfer');
   });
 
   testWidgets('review frame expands, stays editable, and shares its count', (

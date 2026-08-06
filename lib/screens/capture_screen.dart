@@ -137,7 +137,6 @@ class _CaptureScreenState extends State<CaptureScreen>
           seed: seed,
           species: _species,
           sensitivity: widget.store.settings.defaultSensitivity,
-          confirmBeforeSave: widget.store.settings.confirmBeforeSave,
         ),
       ),
     );

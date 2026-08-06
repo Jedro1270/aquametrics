@@ -22,8 +22,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late Species _defaultSpecies = widget.store.settings.defaultSpecies;
   late double _defaultSensitivity = widget.store.settings.defaultSensitivity;
-  late bool _keepPhotos = widget.store.settings.keepPhotos;
-  late bool _confirmBeforeSave = widget.store.settings.confirmBeforeSave;
 
   @override
   Widget build(BuildContext context) {
@@ -59,32 +57,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChangeEnd: (_) => _saveSettings(),
               ),
             ),
-            const Divider(height: 1, color: AppColors.line),
-            _SwitchRow(
-              label: 'Check the count before saving',
-              caption: 'Opens the review step every time. Recommended.',
-              value: _confirmBeforeSave,
-              onChanged: (value) {
-                setState(() => _confirmBeforeSave = value);
-                _saveSettings();
-              },
-            ),
           ],
         ),
         const SizedBox(height: 16),
         _Group(
           title: 'Storage',
           children: [
-            _SwitchRow(
-              label: 'Keep captured photos',
-              caption: 'Lets you re-check a count later. Uses more space.',
-              value: _keepPhotos,
-              onChanged: (value) {
-                setState(() => _keepPhotos = value);
-                _saveSettings();
-              },
-            ),
-            const Divider(height: 1, color: AppColors.line),
             _TapRow(
               label: 'Export all counts',
               caption: 'CSV you can open in a spreadsheet.',
@@ -111,8 +89,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Counts stay on this phone. No account, no upload, works '
-                  'with no signal.',
+                  'Counts stay on this phone. No account, no upload.',
                   style: text.bodyMedium?.copyWith(color: AppColors.inkSoft),
                 ),
               ),
@@ -135,8 +112,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       AppSettings(
         defaultSpecies: _defaultSpecies,
         defaultSensitivity: _defaultSensitivity,
-        keepPhotos: _keepPhotos,
-        confirmBeforeSave: _confirmBeforeSave,
       ),
     );
   }
@@ -218,48 +193,6 @@ class _Block extends StatelessWidget {
           Text(caption, style: text.bodySmall),
           const SizedBox(height: 12),
           child,
-        ],
-      ),
-    );
-  }
-}
-
-class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({
-    required this.label,
-    required this.caption,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final String caption;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: text.titleMedium),
-                const SizedBox(height: 3),
-                Text(caption, style: text.bodySmall),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeTrackColor: AppColors.teal,
-          ),
         ],
       ),
     );

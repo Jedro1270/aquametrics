@@ -129,21 +129,15 @@ void main() {
     addTearDown(migrated.close);
 
     expect(migrated.settings.defaultSpecies, Species.tilapia);
-    expect(migrated.settings.keepPhotos, isTrue);
   });
 
-  test('persists counting and storage settings', () async {
+  test('persists counting settings', () async {
     final first = await BatchStore.open(
       factory: databaseFactoryFfi,
       path: databasePath,
     );
     await first.updateSettings(
-      const AppSettings(
-        defaultSpecies: Species.hito,
-        defaultSensitivity: 0.31,
-        keepPhotos: false,
-        confirmBeforeSave: false,
-      ),
+      const AppSettings(defaultSpecies: Species.hito, defaultSensitivity: 0.31),
     );
     await first.close();
 
@@ -155,42 +149,6 @@ void main() {
 
     expect(reopened.settings.defaultSpecies, Species.hito);
     expect(reopened.settings.defaultSensitivity, 0.31);
-    expect(reopened.settings.keepPhotos, isFalse);
-    expect(reopened.settings.confirmBeforeSave, isFalse);
-  });
-
-  test('does not persist images when photo retention is disabled', () async {
-    final store = await BatchStore.open(
-      factory: databaseFactoryFfi,
-      path: databasePath,
-    );
-    await store.updateSettings(store.settings.copyWith(keepPhotos: false));
-    final frame = await PhotoFrame.decode(_imageBytes);
-    await store.add(
-      CountBatch(
-        id: 'without-photo',
-        label: 'No photo',
-        species: Species.sugpo,
-        autoCount: 1,
-        manualDelta: 0,
-        capturedAt: DateTime(2026, 8, 6),
-        seed: 8,
-      ),
-      SavedFrame(
-        frame: frame,
-        markers: const [Marker(p: Offset(0.5, 0.5))],
-        ringRadius: 0.03,
-      ),
-    );
-    await store.close();
-
-    final reopened = await BatchStore.open(
-      factory: databaseFactoryFfi,
-      path: databasePath,
-    );
-    addTearDown(reopened.close);
-    expect(reopened.batches, hasLength(1));
-    expect(await reopened.loadFrame('without-photo'), isNull);
   });
 
   test('exports escaped count history as CSV', () {

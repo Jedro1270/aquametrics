@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../data/batch_store.dart';
@@ -26,7 +24,6 @@ class ReviewScreen extends StatefulWidget {
     required this.seed,
     required this.species,
     required this.sensitivity,
-    required this.confirmBeforeSave,
   });
 
   final BatchStore store;
@@ -37,7 +34,6 @@ class ReviewScreen extends StatefulWidget {
 
   final Species species;
   final double sensitivity;
-  final bool confirmBeforeSave;
 
   @override
   State<ReviewScreen> createState() => _ReviewScreenState();
@@ -58,7 +54,7 @@ class _ReviewScreenState extends State<ReviewScreen>
     duration: const Duration(milliseconds: 850),
   )..repeat();
 
-  final _labelCtrl = TextEditingController(text: 'Pond 3 transfer');
+  final _labelCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
 
   late Species _species = widget.species;
@@ -83,10 +79,8 @@ class _ReviewScreenState extends State<ReviewScreen>
       if (!_scan.isAnimating) _scan.repeat();
     } else {
       _scan.stop();
-      final completedFirstPass = _firstPass;
       _firstPass = false;
       if (!_reveal.isCompleted) _reveal.forward();
-      if (completedFirstPass && !widget.confirmBeforeSave) unawaited(_save());
     }
     setState(() {});
   }

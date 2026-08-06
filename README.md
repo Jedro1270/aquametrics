@@ -6,7 +6,7 @@ Point your phone at a tray, take one shot, and AquaMetrics counts what's in the
 frame. No clicker, no tallying out loud, no losing your place when someone talks
 to you.
 
-Built for hatchery work: bright sun, wet hands, and no signal.
+Built for hatchery work: bright sun, wet hands.
 
 ## How you use it
 

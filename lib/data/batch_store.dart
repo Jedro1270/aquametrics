@@ -13,26 +13,16 @@ class AppSettings {
   const AppSettings({
     this.defaultSpecies = Species.tilapia,
     this.defaultSensitivity = 0.72,
-    this.keepPhotos = true,
-    this.confirmBeforeSave = true,
   });
 
   final Species defaultSpecies;
   final double defaultSensitivity;
-  final bool keepPhotos;
-  final bool confirmBeforeSave;
 
-  AppSettings copyWith({
-    Species? defaultSpecies,
-    double? defaultSensitivity,
-    bool? keepPhotos,
-    bool? confirmBeforeSave,
-  }) => AppSettings(
-    defaultSpecies: defaultSpecies ?? this.defaultSpecies,
-    defaultSensitivity: defaultSensitivity ?? this.defaultSensitivity,
-    keepPhotos: keepPhotos ?? this.keepPhotos,
-    confirmBeforeSave: confirmBeforeSave ?? this.confirmBeforeSave,
-  );
+  AppSettings copyWith({Species? defaultSpecies, double? defaultSensitivity}) =>
+      AppSettings(
+        defaultSpecies: defaultSpecies ?? this.defaultSpecies,
+        defaultSensitivity: defaultSensitivity ?? this.defaultSensitivity,
+      );
 }
 
 /// Local store for count history. Production instances are backed by SQLite;
@@ -142,7 +132,7 @@ class BatchStore extends ChangeNotifier {
       await database.transaction((transaction) async {
         await transaction.insert('count_batches', {
           ..._batchToRow(batch),
-          'image_bytes': _settings.keepPhotos ? frame.frame.encodedBytes : null,
+          'image_bytes': frame.frame.encodedBytes,
           'ring_radius': frame.ringRadius,
         });
         final markerBatch = transaction.batch();
@@ -160,7 +150,7 @@ class BatchStore extends ChangeNotifier {
       });
     }
     _batches.add(batch);
-    if (_settings.keepPhotos) _frames.put(batch.id, frame);
+    _frames.put(batch.id, frame);
     notifyListeners();
   }
 
@@ -289,15 +279,13 @@ class BatchStore extends ChangeNotifier {
   static Map<String, Object?> _settingsToRow(AppSettings settings) => {
     'default_species': settings.defaultSpecies.name,
     'default_sensitivity': settings.defaultSensitivity,
-    'keep_photos': settings.keepPhotos ? 1 : 0,
-    'confirm_before_save': settings.confirmBeforeSave ? 1 : 0,
+    'keep_photos': 1,
+    'confirm_before_save': 1,
   };
 
   static AppSettings _settingsFromRow(Map<String, Object?> row) => AppSettings(
     defaultSpecies: Species.values.byName(row['default_species'] as String),
     defaultSensitivity: (row['default_sensitivity'] as num).toDouble(),
-    keepPhotos: row['keep_photos'] == 1,
-    confirmBeforeSave: row['confirm_before_save'] == 1,
   );
 
   static String _csv(String value) => '"${value.replaceAll('"', '""')}"';
